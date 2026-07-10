@@ -7,7 +7,7 @@ export const GAME_CONFIG = {
 
   // 玩家初始属性
   INITIAL_MASS: 100,
-  BASE_SPEED: 3.5,
+  BASE_SPEED: 2.2,
   DASH_SPEED_MULTIPLIER: 1.8,
   FRENZY_SPEED_MULTIPLIER: 2.0,
   DASH_MASS_DECAY_RATE: 0.02, // 每秒扣除当前总质量的 2%

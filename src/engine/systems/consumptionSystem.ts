@@ -66,6 +66,7 @@ export function consumptionSystem(
     if (dist < reach) {
       // 执行吞噬
       entity.isAlive = false;
+      state.actions?.onEat?.();
 
       // 质量吸收 (高效消化突变: 效率 +10%，加算到 EAT_EFFICIENCY)
       const gutStacks = player.mutations.find(m => m.id === 'mut_efficient_gut')?.stacks || 0;
@@ -115,7 +116,19 @@ export function consumptionSystem(
     }
   }
 
-  // 4. 处理玩家被吞噬致命结算 (若本 tick 吃完鱼后，玩家半径仍致命则结算)
+  // 4. 增长检测与重哈希逻辑 (PRD 4.3)
+  if (player.radius > player.lastRehashRadius * 1.5) {
+    player.lastRehashRadius = player.radius;
+    state.spatialHash.cellSize = player.radius * 4;
+    state.spatialHash.clear();
+    state.entities.forEach((entity) => {
+      if (entity.isAlive) {
+        state.spatialHash.insert(entity);
+      }
+    });
+  }
+
+  // 5. 处理玩家被吞噬致命结算 (若本 tick 吃完鱼后，玩家半径仍致命则结算)
   if (lethalPredators.length > 0 && (!player.isInvulnerableUntil || player.isInvulnerableUntil <= clock)) {
     const predator = lethalPredators[0]; // 选取第一个致命掠食者
     
@@ -160,6 +173,7 @@ export function consumptionSystem(
       // 死亡结算
       player.isAlive = false;
       state.status = 'game_over';
+      state.actions?.onGameOver?.();
     }
   }
 }

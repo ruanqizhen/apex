@@ -14,6 +14,7 @@ export function evolutionSystem(state: WorldState) {
   // 2. 如果质量达到阈值，触发升级
   if (player.mass >= nextThreshold) {
     state.status = 'paused_evolution';
+    state.actions?.onLevelUp?.();
 
     // 筛选出玩家可以选择的突变卡 (对于不可叠加的突变，若已拥有则过滤掉)
     const availablePool = GAME_CONFIG.MUTATION_POOL.filter((card) => {

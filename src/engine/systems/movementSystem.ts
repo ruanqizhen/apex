@@ -68,8 +68,8 @@ export function movementSystem(state: WorldState, dt: number, emitParticle: (p: 
         }
       }
 
-      // 每隔几帧产生一个水泡尾迹 (bubble_trail)
-      if (Math.random() < 0.4) {
+      // 每隔几帧产生一个水泡尾迹 (bubble_trail，Frenzy 期间密度倍增)
+      if (Math.random() < (isFrenzy ? 0.85 : 0.4)) {
         // 在玩家屁股后面产生水泡
         const angle = player.facing + Math.PI + (Math.random() - 0.5) * 0.5; // 反朝向 + 稍微抖动
         const dist = player.radius * 0.9;

@@ -51,6 +51,21 @@ export interface MutationCardDef {
   isStackable: boolean;
 }
 
+export interface GameStoreActions {
+  startGame: () => void;
+  resetGame: () => void;
+  setDashing: (isDashing: boolean) => void;
+  setInputDirection: (dir: Vector2) => void;
+  applyMutation: (mutationId: string) => void;
+  emitParticle: (particle: Omit<ParticleEvent, 'id' | 'createdAt'>) => void;
+  runFixedTick: (dt: number) => void;
+  setCanvasSize: (width: number, height: number) => void;
+  setPaused: (paused: boolean) => void;
+  onEat?: () => void;
+  onLevelUp?: () => void;
+  onGameOver?: () => void;
+}
+
 export interface Player extends BaseEntity {
   type: EntityType.Player;
   baseSpeed: number;
@@ -62,6 +77,7 @@ export interface Player extends BaseEntity {
   mutations: MutationInstance[];
   evolutionLevel: number;
   isInvulnerableUntil: number | null;
+  lastRehashRadius: number;     // 上一次 rehash 时的玩家半径
 }
 
 export interface ParticleEvent {
@@ -88,6 +104,7 @@ export interface SpatialHashGrid {
   remove(entity: BaseEntity): void;
   update(entity: BaseEntity, prevPos: Vector2): void;
   queryNearby(position: Vector2, radius: number): string[];
+  clear(): void;
 }
 
 export interface WorldState {
@@ -104,4 +121,6 @@ export interface WorldState {
     maxMassReached: number;
     survivalMs: number;
   };
+  actions?: GameStoreActions;      // 方便系统调用事件钩子
 }
+

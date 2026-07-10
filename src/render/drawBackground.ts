@@ -34,7 +34,8 @@ export function drawBackground(
   width: number,
   height: number,
   camera: CameraState,
-  logicalClockMs: number
+  logicalClockMs: number,
+  isFrenzy?: boolean
 ) {
   // 1. 绘制基本屏幕渐变色（深海）
   const grad = ctx.createLinearGradient(0, 0, 0, height);
@@ -65,8 +66,11 @@ export function drawBackground(
     
     const x = p.pos.x + driftX;
 
-    // 呼吸发光效果
-    const currentAlpha = p.alpha * (0.6 + 0.4 * Math.sin(logicalClockMs * p.pulseSpeed + p.pulsePhase));
+    // 呼吸发光效果 (Frenzy 激活期间背景星斑亮度放大 1.6 倍)
+    const currentAlpha = Math.min(
+      1.0,
+      p.alpha * (0.6 + 0.4 * Math.sin(logicalClockMs * p.pulseSpeed + p.pulsePhase)) * (isFrenzy ? 1.6 : 1.0)
+    );
 
     ctx.beginPath();
     ctx.arc(x, y, p.radius, 0, Math.PI * 2);

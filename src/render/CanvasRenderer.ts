@@ -20,8 +20,10 @@ export const CanvasRenderer = {
     const ctx = canvasCtx;
     const { canvasWidth, canvasHeight, camera, player, entities, particles, logicalClockMs } = state;
 
+    const isFrenzy = player.frenzyUntil !== null && player.frenzyUntil > logicalClockMs;
+
     // 1. 清屏并绘制海洋渐变背景与星斑
-    drawBackground(ctx, canvasWidth, canvasHeight, camera, logicalClockMs);
+    drawBackground(ctx, canvasWidth, canvasHeight, camera, logicalClockMs, isFrenzy);
 
     // 2. 变换到相机世界坐标系进行实体渲染
     const cx = canvasWidth / 2;
@@ -49,6 +51,22 @@ export const CanvasRenderer = {
     drawParticles(ctx, particles, logicalClockMs);
 
     ctx.restore();
+
+    // 绘制全屏狂热后处理特效 (PRD 5.3)
+    if (isFrenzy) {
+      ctx.save();
+      const grad = ctx.createRadialGradient(
+        canvasWidth / 2, canvasHeight / 2, Math.min(canvasWidth, canvasHeight) * 0.2,
+        canvasWidth / 2, canvasHeight / 2, Math.max(canvasWidth, canvasHeight) * 0.7
+      );
+      grad.addColorStop(0, 'rgba(244, 197, 66, 0.0)');
+      grad.addColorStop(0.5, 'rgba(244, 197, 66, 0.05)');
+      grad.addColorStop(1, 'rgba(244, 197, 66, 0.22)');
+      
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+      ctx.restore();
+    }
 
     // 3. 绘制 HUD/Debug Overlay (在屏幕固定空间，不受相机矩阵影响)
     this.renderDebugOverlay(ctx, state);

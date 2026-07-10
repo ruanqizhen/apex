@@ -58,6 +58,7 @@ const createMockState = (): WorldState => {
     mutations: [],
     evolutionLevel: 0,
     isInvulnerableUntil: null,
+    lastRehashRadius: getRadiusFromMass(100),
   };
 
   return {
@@ -76,13 +77,13 @@ const createMockState = (): WorldState => {
 // 3.1 正常游玩中，小于 3000ms 的时间不触发衰减
 const state1 = createMockState();
 state1.logicalClockMs = 3900; // 距离进食过去了 2900ms
-comboFrenzySystem(state1, 16.67, () => {});
+comboFrenzySystem(state1, () => {});
 assert(state1.player.comboCount === 10, `Combo should not decay before 3000ms (is ${state1.player.comboCount})`);
 
 // 3.2 距离进食过去了 3500ms，触发第 1 步衰减 (每 500ms -1)
 const state2 = createMockState();
 state2.logicalClockMs = 4500; // 距离进食过去了 3500ms (3000ms 触发 + 500ms 扣除 1)
-comboFrenzySystem(state2, 16.67, () => {});
+comboFrenzySystem(state2, () => {});
 assert(state2.player.comboCount === 9, `Combo should decay to 9 at 3500ms elapsed (is ${state2.player.comboCount})`);
 // 检查 comboLastEatAt 是否正确推进
 assert(state2.player.comboLastEatAt === 1500, `comboLastEatAt should adjust forward (is ${state2.player.comboLastEatAt})`);
@@ -91,11 +92,11 @@ assert(state2.player.comboLastEatAt === 1500, `comboLastEatAt should adjust forw
 const state3 = createMockState();
 state3.player.mutations.push({ id: 'mut_combo_guard', stacks: 1 });
 state3.logicalClockMs = 4500; // 距离进食过去 3500ms
-comboFrenzySystem(state3, 16.67, () => {});
+comboFrenzySystem(state3, () => {});
 assert(state3.player.comboCount === 10, `Combo should not decay with mut_combo_guard at 3500ms elapsed (is ${state3.player.comboCount})`);
 
 state3.logicalClockMs = 6500; // 过去 5500ms (5000ms 触发 + 500ms 扣除 1)
-comboFrenzySystem(state3, 16.67, () => {});
+comboFrenzySystem(state3, () => {});
 assert(state3.player.comboCount === 9, `Combo should decay to 9 with mut_combo_guard at 5500ms elapsed (is ${state3.player.comboCount})`);
 
 console.log(`\n=== TESTS COMPLETE: ${passed} PASSED, ${failed} FAILED ===`);

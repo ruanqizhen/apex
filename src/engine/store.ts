@@ -1,7 +1,7 @@
 // src/engine/store.ts
 
 import { createStore } from 'zustand/vanilla';
-import { WorldState, Player, AIEntity, ParticleEvent, Vector2, EntityType } from './types';
+import { WorldState, Player, AIEntity, ParticleEvent, Vector2, EntityType, GameStoreActions } from './types';
 import { GAME_CONFIG, getRadiusFromMass } from '../config/gameConfig';
 import { SpatialHashGridImpl } from './spatialHash';
 import { EntityPool } from './entityPool';
@@ -13,18 +13,6 @@ import { collisionSystem } from './systems/collisionSystem';
 import { consumptionSystem } from './systems/consumptionSystem';
 import { comboFrenzySystem } from './systems/comboFrenzySystem';
 import { evolutionSystem } from './systems/evolutionSystem';
-
-export interface GameStoreActions {
-  startGame: () => void;
-  resetGame: () => void;
-  setDashing: (isDashing: boolean) => void;
-  setInputDirection: (dir: Vector2) => void;
-  applyMutation: (mutationId: string) => void;
-  emitParticle: (particle: Omit<ParticleEvent, 'id' | 'createdAt'>) => void;
-  runFixedTick: (dt: number) => void;
-  setCanvasSize: (width: number, height: number) => void;
-  setPaused: (paused: boolean) => void;
-}
 
 export type GameStore = WorldState & {
   actions: GameStoreActions;
@@ -57,6 +45,7 @@ const createInitialPlayer = (): Player => ({
   mutations: [],
   evolutionLevel: 0,
   isInvulnerableUntil: null,
+  lastRehashRadius: initialPlayerRadius,
 });
 
 export const gameStore = createStore<GameStore>((set, get) => {
@@ -210,6 +199,21 @@ export const gameStore = createStore<GameStore>((set, get) => {
         });
       },
 
+      onEat: () => {
+        // 音效钩子占位
+        console.log('[AUDIO HOOK] onEat triggered');
+      },
+
+      onLevelUp: () => {
+        // 音效钩子占位
+        console.log('[AUDIO HOOK] onLevelUp triggered');
+      },
+
+      onGameOver: () => {
+        // 音效钩子占位
+        console.log('[AUDIO HOOK] onGameOver triggered');
+      },
+
       runFixedTick: (dt: number) => {
         set((state) => {
           if (state.status !== 'playing') return {};
@@ -235,7 +239,8 @@ export const gameStore = createStore<GameStore>((set, get) => {
             stats: {
               ...state.stats,
               survivalMs: nextSurvivalMs
-            }
+            },
+            actions: state.actions
           };
 
           // 物理位移与冲刺消耗
@@ -284,12 +289,14 @@ export const gameStore = createStore<GameStore>((set, get) => {
           cameraSystem(updatedState, state.canvasWidth);
 
           return {
+            status: updatedState.status,
             logicalClockMs: updatedState.logicalClockMs,
             particles: updatedState.particles,
             stats: updatedState.stats,
             player: updatedState.player,
             camera: updatedState.camera,
-            entities: updatedState.entities
+            entities: updatedState.entities,
+            pendingEvolutionChoices: updatedState.pendingEvolutionChoices
           };
         });
       }

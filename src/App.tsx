@@ -1,6 +1,4 @@
-// src/App.tsx
-
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { gameStore } from './engine/store';
 import { CanvasRenderer } from './render/CanvasRenderer';
@@ -16,6 +14,7 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const actions = useStore(gameStore, (s) => s.actions);
   const status = useStore(gameStore, (s) => s.status);
+  const [showCompatNotice, setShowCompatNotice] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -29,6 +28,13 @@ export default function App() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
       actions.setCanvasSize(window.innerWidth, window.innerHeight);
+
+      // 极小视口或竖屏时，触发兼容性提示
+      const isSmall = window.innerWidth < 1024 || window.innerHeight < 640;
+      const isPortrait = window.innerHeight > window.innerWidth;
+      if (isSmall || isPortrait) {
+        setShowCompatNotice(true);
+      }
     };
 
     window.addEventListener('resize', resizeCanvas);
@@ -93,6 +99,51 @@ export default function App() {
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+      {/* 极小视口/移动端兼容性提示条 */}
+      {showCompatNotice && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          background: 'rgba(224, 92, 92, 0.92)',
+          color: '#fff',
+          padding: '10px 20px',
+          textAlign: 'center',
+          fontSize: '13px',
+          fontWeight: 'bold',
+          zIndex: 100,
+          fontFamily: 'sans-serif',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '15px',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
+          boxSizing: 'border-box'
+        }}>
+          <span>⚠️ 建议使用桌面浏览器（分辨率 1024×640 以上，横屏模式）以获得最佳游戏体验。</span>
+          <button 
+            onClick={() => setShowCompatNotice(false)}
+            style={{
+              background: 'rgba(255, 255, 255, 0.25)',
+              border: 'none',
+              borderRadius: '4px',
+              color: '#fff',
+              padding: '3px 10px',
+              cursor: 'pointer',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              transition: 'background 0.2s',
+              pointerEvents: 'auto'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.4)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)'}
+          >
+            忽略
+          </button>
+        </div>
+      )}
+
       {/* 游戏渲染画布 */}
       <canvas
         ref={canvasRef}
