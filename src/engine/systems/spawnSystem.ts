@@ -121,19 +121,22 @@ export function spawnSystem(
         const ratio = GAME_CONFIG.PREY_RADIUS_RATIO_MIN + Math.random() * (GAME_CONFIG.PREY_RADIUS_RATIO_MAX - GAME_CONFIG.PREY_RADIUS_RATIO_MIN);
         radius = player.radius * ratio;
         perceptionRadius = radius * 7.5;
-        baseSpeed = GAME_CONFIG.BASE_SPEED * (0.8 + Math.random() * 0.3);
+        const speedGrowthFactor = Math.pow(radius / playerInitialRadius, 0.7);
+        baseSpeed = GAME_CONFIG.BASE_SPEED * (0.8 + Math.random() * 0.3) * speedGrowthFactor;
       } 
       else if (type === EntityType.Competitor) {
         const ratio = GAME_CONFIG.COMPETITOR_RADIUS_RATIO_MIN + Math.random() * (GAME_CONFIG.COMPETITOR_RADIUS_RATIO_MAX - GAME_CONFIG.COMPETITOR_RADIUS_RATIO_MIN);
         radius = player.radius * ratio;
         perceptionRadius = radius * 5.0;
-        baseSpeed = GAME_CONFIG.BASE_SPEED * (0.95 + Math.random() * 0.2);
+        const speedGrowthFactor = Math.pow(radius / playerInitialRadius, 0.7);
+        baseSpeed = GAME_CONFIG.BASE_SPEED * (0.95 + Math.random() * 0.2) * speedGrowthFactor;
       } 
       else if (type === EntityType.Predator) {
         const ratio = GAME_CONFIG.PREDATOR_RADIUS_RATIO_MIN + Math.random() * (GAME_CONFIG.PREDATOR_RADIUS_RATIO_MAX - GAME_CONFIG.PREDATOR_RADIUS_RATIO_MIN);
         radius = player.radius * ratio;
         perceptionRadius = radius * 8.0;
-        baseSpeed = GAME_CONFIG.BASE_SPEED * (0.65 + Math.random() * 0.15);
+        const speedGrowthFactor = Math.pow(radius / playerInitialRadius, 0.7);
+        baseSpeed = GAME_CONFIG.BASE_SPEED * (0.65 + Math.random() * 0.15) * speedGrowthFactor;
       }
 
       // 重叠检查逻辑 (最多重试 5 次，PRD 13)

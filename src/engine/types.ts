@@ -82,7 +82,7 @@ export interface Player extends BaseEntity {
 
 export interface ParticleEvent {
   id: string;
-  kind: "eat_burst" | "bubble_trail" | "combo_flash" | "shield_break";
+  kind: "eat_burst" | "bubble_trail" | "combo_flash" | "shield_break" | "eaten_prey";
   position: Vector2;
   createdAt: number;
   ttlMs: number;

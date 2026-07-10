@@ -109,6 +109,20 @@ export function consumptionSystem(
         }
       });
 
+      // 触发被吸入/吞食的动效粒子 (PRD 补充)
+      emitParticle({
+        kind: 'eaten_prey',
+        position: { ...entity.position },
+        ttlMs: 250, // 快速缩进吸入
+        meta: {
+          radius: entity.radius,
+          colorR,
+          colorG,
+          colorB,
+          facing: entity.facing
+        }
+      });
+
       // 从地图与空间哈希中回收
       state.spatialHash.remove(entity);
       state.entities.delete(entity.id);

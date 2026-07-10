@@ -1,11 +1,10 @@
-// src/render/drawParticles.ts
-
-import { ParticleEvent } from '../engine/types';
+import { ParticleEvent, Vector2 } from '../engine/types';
 
 export function drawParticles(
   ctx: CanvasRenderingContext2D,
   particles: ParticleEvent[],
-  logicalClockMs: number
+  logicalClockMs: number,
+  playerPos?: Vector2
 ) {
   ctx.save();
 
@@ -37,6 +36,62 @@ export function drawParticles(
         ctx.fill();
       }
     } 
+    else if (p.kind === 'eaten_prey') {
+      // 被吞下的小鱼物理缩水吸入动画
+      const startX = p.position.x;
+      const startY = p.position.y;
+      const targetX = playerPos?.x ?? startX;
+      const targetY = playerPos?.y ?? startY;
+      
+      // 使用 Ease-In 平滑运动向玩家游动吸入
+      const t = progress;
+      const currentX = startX + (targetX - startX) * t * t;
+      const currentY = startY + (targetY - startY) * t * t;
+      
+      // 半径从原始大小缩减到 0
+      const startRadius = p.meta?.radius || 10;
+      const currentRadius = startRadius * (1 - t);
+      
+      const colorR = p.meta?.colorR ?? 111;
+      const colorG = p.meta?.colorG ?? 183;
+      const colorB = p.meta?.colorB ?? 224;
+      const facing = p.meta?.facing ?? 0;
+      
+      ctx.save();
+      ctx.translate(currentX, currentY);
+      ctx.rotate(facing);
+      
+      const baseColor = `rgba(${colorR}, ${colorG}, ${colorB}, ${alpha})`;
+      ctx.fillStyle = baseColor;
+      
+      // 绘制缩微版的小尾巴
+      ctx.beginPath();
+      ctx.moveTo(-currentRadius * 0.9, 0);
+      ctx.lineTo(-currentRadius * 1.5, -currentRadius * 0.6);
+      ctx.lineTo(-currentRadius * 1.25, 0);
+      ctx.lineTo(-currentRadius * 1.5, currentRadius * 0.6);
+      ctx.closePath();
+      ctx.fill();
+      
+      // 绘制缩微版的小圆身体
+      ctx.beginPath();
+      ctx.arc(0, 0, currentRadius, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // 绘制微小的眼睛 (如果半径仍大于 3 像素)
+      if (currentRadius > 3) {
+        ctx.beginPath();
+        ctx.arc(currentRadius * 0.45, -currentRadius * 0.35, currentRadius * 0.16, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(currentRadius * 0.52, -currentRadius * 0.35, currentRadius * 0.08, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
+        ctx.fill();
+      }
+      
+      ctx.restore();
+    }
     else if (p.kind === 'bubble_trail') {
       // 冲刺或移动产生的水泡尾迹：单个水泡，沿原速度反方向产生并略微浮起
       const size = p.meta?.size || 4;

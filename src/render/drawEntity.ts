@@ -43,7 +43,20 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, lo
     const wiggle = Math.sin(logicalClockMs * freq) * amp;
     wiggleScaleX = 1 + wiggle;
     wiggleScaleY = 1 - wiggle;
-    ctx.scale(wiggleScaleX, wiggleScaleY);
+
+    // 吞食瞬间的吸吮膨胀动画 (PRD 补充)
+    let gulpScale = 1.0;
+    if (type === EntityType.Player) {
+      const player = entity as Player;
+      const msSinceEat = logicalClockMs - player.comboLastEatAt;
+      if (msSinceEat >= 0 && msSinceEat < 250) {
+        const t = msSinceEat / 250;
+        const expansion = Math.sin(t * Math.PI) * 0.22;
+        gulpScale = 1.0 + expansion;
+      }
+    }
+
+    ctx.scale(wiggleScaleX * gulpScale, wiggleScaleY * gulpScale);
   }
 
   // 3. 高级阴影效果
