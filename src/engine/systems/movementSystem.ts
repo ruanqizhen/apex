@@ -33,9 +33,20 @@ export function movementSystem(state: WorldState, dt: number, emitParticle: (p: 
     const finStacks = player.mutations.find(m => m.id === 'mut_fin')?.stacks || 0;
     const finMultiplier = Math.pow(1.15, finStacks);
 
-    // 速度随体型增长进行补偿缩放，防止体型变大后相对移动速度过慢 (PRD 补充)
+    // 依据相机实际缩放比例进行平滑速度补偿，结合实际半径比率进行限幅双向保护，防止吃鱼瞬间半径突变导致速度瞬间暴涨
     const initialPlayerRadius = getRadiusFromMass(GAME_CONFIG.INITIAL_MASS);
-    const speedGrowthFactor = Math.pow(player.radius / initialPlayerRadius, 0.7);
+    const actualRatio = player.radius / initialPlayerRadius;
+    
+    let speedGrowthFactor = Math.pow(actualRatio, 0.95);
+    const currentTargetScale = state.camera.targetScale;
+    const currentCameraScale = state.camera.scale;
+    
+    if (currentTargetScale > 0.001 && currentCameraScale > 0.001) {
+      const initialTargetScale = currentTargetScale * actualRatio;
+      const ratio = initialTargetScale / currentCameraScale;
+      // 用 Math.min 限制最大比例，确保速度绝对平滑，完全同步于相机缩放过渡，没有任何突变阶跃
+      speedGrowthFactor = Math.pow(Math.min(actualRatio, ratio), 0.95);
+    }
 
     const baseSpeed = player.baseSpeed * finMultiplier * speedGrowthFactor;
     const speedMultiplier = (player.isDashing ? GAME_CONFIG.DASH_SPEED_MULTIPLIER : 1.0) * (isFrenzy ? GAME_CONFIG.FRENZY_SPEED_MULTIPLIER : 1.0);

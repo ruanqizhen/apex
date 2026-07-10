@@ -60,8 +60,8 @@ export const gameStore = createStore<GameStore>((set, get) => {
     particles: [] as ParticleEvent[],
     camera: {
       position: { x: 0, y: 0 },
-      scale: 1.0,
-      targetScale: 1.0,
+      scale: 4.54,
+      targetScale: 4.54,
     },
     pendingEvolutionChoices: null,
     stats: {
@@ -84,6 +84,9 @@ export const gameStore = createStore<GameStore>((set, get) => {
         const player = createInitialPlayer();
         globalSpatialHash.cellSize = player.radius * 4;
 
+        // 根据初始玩家半径和屏幕宽度计算相机的初始缩放比例
+        const initialScale = (get().canvasWidth * 0.05) / (2 * player.radius);
+
         set({
           status: 'playing',
           logicalClockMs: 0,
@@ -92,8 +95,8 @@ export const gameStore = createStore<GameStore>((set, get) => {
           particles: [],
           camera: {
             position: { x: 0, y: 0 },
-            scale: 1.0,
-            targetScale: 1.0,
+            scale: initialScale,
+            targetScale: initialScale,
           },
           pendingEvolutionChoices: null,
           stats: {

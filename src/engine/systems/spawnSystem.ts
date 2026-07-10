@@ -67,6 +67,15 @@ export function spawnSystem(
     const spawnOuter = viewportDiagonal * GAME_CONFIG.SPAWN_OUTER_DIAGONAL_RATIO;
 
     const initialPlayerRadius = getRadiusFromMass(GAME_CONFIG.INITIAL_MASS);
+    const level = player.evolutionLevel;
+
+    // 动态难度梯度调整 (PRD 补充)
+    // 掠食者数量：随等级成长，从初始 1 只增加到最高 16 只，加大后期生存压力
+    const dynamicMaxPredators = Math.min(16, 1 + level * 2);
+    // 猎物小鱼数量：开局较多 (60只) 便于升级成长，后期由于掠食者变多而略微收紧
+    const dynamicMaxPrey = Math.max(25, 60 - level * 3);
+    // 同级竞争者数量：从 5 增加到最多 30，增加战场的混乱度和弹性阻碍
+    const dynamicMaxCompetitors = Math.min(30, 5 + level * 3);
 
     // 补充 Plankton
     if (planktonCount < GAME_CONFIG.MAX_PLANKTON) {
@@ -78,8 +87,8 @@ export function spawnSystem(
     }
 
     // 补充 Prey
-    if (preyCount < GAME_CONFIG.MAX_PREY) {
-      const needed = GAME_CONFIG.MAX_PREY - preyCount;
+    if (preyCount < dynamicMaxPrey) {
+      const needed = dynamicMaxPrey - preyCount;
       const batchSize = Math.min(needed, 5);
       for (let i = 0; i < batchSize; i++) {
         spawnEntity(EntityType.Prey, initialPlayerRadius);
@@ -87,8 +96,8 @@ export function spawnSystem(
     }
 
     // 补充 Competitor
-    if (competitorCount < GAME_CONFIG.MAX_COMPETITOR) {
-      const needed = GAME_CONFIG.MAX_COMPETITOR - competitorCount;
+    if (competitorCount < dynamicMaxCompetitors) {
+      const needed = dynamicMaxCompetitors - competitorCount;
       const batchSize = Math.min(needed, 2);
       for (let i = 0; i < batchSize; i++) {
         spawnEntity(EntityType.Competitor, initialPlayerRadius);
@@ -96,9 +105,9 @@ export function spawnSystem(
     }
 
     // 补充 Predator
-    if (predatorCount < GAME_CONFIG.MAX_PREDATOR) {
-      const needed = GAME_CONFIG.MAX_PREDATOR - predatorCount;
-      const batchSize = Math.min(needed, 1);
+    if (predatorCount < dynamicMaxPredators) {
+      const needed = dynamicMaxPredators - predatorCount;
+      const batchSize = Math.min(needed, 2); // 允许一次生多只以应付快速上升的上限
       for (let i = 0; i < batchSize; i++) {
         spawnEntity(EntityType.Predator, initialPlayerRadius);
       }
@@ -121,22 +130,29 @@ export function spawnSystem(
         const ratio = GAME_CONFIG.PREY_RADIUS_RATIO_MIN + Math.random() * (GAME_CONFIG.PREY_RADIUS_RATIO_MAX - GAME_CONFIG.PREY_RADIUS_RATIO_MIN);
         radius = player.radius * ratio;
         perceptionRadius = radius * 7.5;
-        const speedGrowthFactor = Math.pow(radius / playerInitialRadius, 0.7);
+        const speedGrowthFactor = Math.pow(radius / playerInitialRadius, 0.95);
         baseSpeed = GAME_CONFIG.BASE_SPEED * (0.8 + Math.random() * 0.3) * speedGrowthFactor;
       } 
       else if (type === EntityType.Competitor) {
         const ratio = GAME_CONFIG.COMPETITOR_RADIUS_RATIO_MIN + Math.random() * (GAME_CONFIG.COMPETITOR_RADIUS_RATIO_MAX - GAME_CONFIG.COMPETITOR_RADIUS_RATIO_MIN);
         radius = player.radius * ratio;
         perceptionRadius = radius * 5.0;
-        const speedGrowthFactor = Math.pow(radius / playerInitialRadius, 0.7);
+        const speedGrowthFactor = Math.pow(radius / playerInitialRadius, 0.95);
         baseSpeed = GAME_CONFIG.BASE_SPEED * (0.95 + Math.random() * 0.2) * speedGrowthFactor;
       } 
       else if (type === EntityType.Predator) {
         const ratio = GAME_CONFIG.PREDATOR_RADIUS_RATIO_MIN + Math.random() * (GAME_CONFIG.PREDATOR_RADIUS_RATIO_MAX - GAME_CONFIG.PREDATOR_RADIUS_RATIO_MIN);
         radius = player.radius * ratio;
-        perceptionRadius = radius * 8.0;
-        const speedGrowthFactor = Math.pow(radius / playerInitialRadius, 0.7);
-        baseSpeed = GAME_CONFIG.BASE_SPEED * (0.65 + Math.random() * 0.15) * speedGrowthFactor;
+        
+        // 掠食者感知半径随玩家等级成长：初始为 radius * 6.0，每级 +0.6，最高 12.0
+        const perceptionScale = Math.min(12.0, 6.0 + player.evolutionLevel * 0.6);
+        perceptionRadius = radius * perceptionScale;
+        
+        // 掠食者基础游速随玩家等级成长：初始为 0.5 倍，每级 +0.05，最高 1.15 倍
+        const speedScale = Math.min(1.15, 0.5 + player.evolutionLevel * 0.05);
+        
+        const speedGrowthFactor = Math.pow(radius / playerInitialRadius, 0.95);
+        baseSpeed = GAME_CONFIG.BASE_SPEED * (speedScale + Math.random() * 0.15) * speedGrowthFactor;
       }
 
       // 重叠检查逻辑 (最多重试 5 次，PRD 13)
