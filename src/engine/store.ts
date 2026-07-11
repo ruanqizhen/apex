@@ -48,6 +48,7 @@ const createInitialPlayer = (): Player => ({
   lastRehashRadius: initialPlayerRadius,
   magnetUntil: null,
   shieldActive: false,
+  inkCooldownUntil: null,
 });
 
 export const gameStore = createStore<GameStore>((set, get) => {
@@ -187,6 +188,46 @@ export const gameStore = createStore<GameStore>((set, get) => {
             particles: [...state.particles, newParticle]
           };
         });
+      },
+
+      triggerActiveSkill: () => {
+        const state = get();
+        if (state.status !== 'playing') return;
+        const player = state.player;
+        const clock = state.logicalClockMs;
+
+        // 1. 检查是否拥有主动突变：mut_ink
+        const hasInkMutation = player.mutations.some(m => m.id === 'mut_ink');
+        if (!hasInkMutation) return;
+
+        // 2. 检查技能冷却时间 (10秒 CD)
+        if (player.inkCooldownUntil !== null && clock < player.inkCooldownUntil) return;
+
+        // 3. 喷发墨汁：在玩家身后释放
+        const angle = player.facing + Math.PI; // 反方向
+        const spawnDist = player.radius * 0.8;
+        const inkPos = {
+          x: player.position.x + Math.cos(angle) * spawnDist,
+          y: player.position.y + Math.sin(angle) * spawnDist
+        };
+
+        // 产生 ink_cloud 粒子，存活 5 秒，范围半径为 120 世界单位
+        get().actions.emitParticle({
+          kind: 'ink_cloud',
+          position: inkPos,
+          ttlMs: 5000,
+          meta: {
+            radius: 120
+          }
+        });
+
+        // 4. 设置 10 秒冷却
+        set((state) => ({
+          player: {
+            ...state.player,
+            inkCooldownUntil: clock + 10000
+          }
+        }));
       },
 
       setCanvasSize: (width: number, height: number) => {

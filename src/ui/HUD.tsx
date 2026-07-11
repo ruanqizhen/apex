@@ -40,6 +40,12 @@ export default function HUD() {
 
   const shieldActive = player.shieldActive;
 
+  // 技能冷却状态计算 (Task 12)
+  const hasInkSkill = player.mutations.some(m => m.id === 'mut_ink');
+  const inkCdLeft = player.inkCooldownUntil && player.inkCooldownUntil > logicalClockMs
+    ? (player.inkCooldownUntil - logicalClockMs) / 1000
+    : 0;
+
   return (
     <div style={{
       position: 'absolute',
@@ -79,7 +85,7 @@ export default function HUD() {
         </div>
       </div>
 
-      {/* 中部：连击状态栏与道具状态 (Task 10) */}
+      {/* 中部：连击状态栏与道具状态 (Task 10/12) */}
       <div style={{
         pointerEvents: 'auto',
         display: 'flex',
@@ -89,7 +95,7 @@ export default function HUD() {
       }}>
         <ComboBar />
         
-        {(magnetTimeLeft > 0 || freezeTimeLeft > 0 || shieldActive) && (
+        {(magnetTimeLeft > 0 || freezeTimeLeft > 0 || shieldActive || hasInkSkill) && (
           <div style={{
             display: 'flex',
             gap: '12px',
@@ -135,6 +141,18 @@ export default function HUD() {
                 gap: '4px'
               }}>
                 ❄️ 冰冻: {freezeTimeLeft.toFixed(1)}s
+              </span>
+            )}
+            {hasInkSkill && (
+              <span style={{
+                color: inkCdLeft > 0 ? '#9ca3af' : '#a855f7',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                🔮 墨汁: {inkCdLeft > 0 ? `${inkCdLeft.toFixed(1)}s` : '就绪 (Q/右键)'}
               </span>
             )}
           </div>

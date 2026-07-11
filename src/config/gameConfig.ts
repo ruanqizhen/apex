@@ -107,6 +107,13 @@ export const GAME_CONFIG = {
       weight: 20,
       isStackable: true,
     },
+    {
+      id: "mut_ink",
+      name: "深渊墨汁",
+      description: "[主动技能] 按鼠标右键或Q键在屁股后释放一团致盲黑障。经过其中的掠食者丧失追踪能力并减速 50%。CD 10秒。",
+      weight: 25,
+      isStackable: false,
+    },
   ],
 
   // 视觉与美术配色

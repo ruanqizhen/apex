@@ -130,9 +130,29 @@ export function movementSystem(state: WorldState, dt: number, emitParticle: (p: 
       }
     }
 
+    // 墨汁减速：如果 AI 处于墨汁粒子范围内，最终游动速度减半 (Task 6)
+    let speedMultiplier = 1.0;
+    let isInInk = false;
+    for (let i = 0; i < state.particles.length; i++) {
+      const p = state.particles[i];
+      if (p.kind === 'ink_cloud') {
+        const dx = entity.position.x - p.position.x;
+        const dy = entity.position.y - p.position.y;
+        const dist = Math.hypot(dx, dy);
+        const inkRadius = p.meta?.radius || 120;
+        if (dist < inkRadius) {
+          isInInk = true;
+          break;
+        }
+      }
+    }
+    if (isInInk) {
+      speedMultiplier = 0.5;
+    }
+
     entity.position = {
-      x: entity.position.x + entity.velocity.x + pullX,
-      y: entity.position.y + entity.velocity.y + pullY
+      x: entity.position.x + entity.velocity.x * speedMultiplier + pullX,
+      y: entity.position.y + entity.velocity.y * speedMultiplier + pullY
     };
 
     // 如果有速度，朝向面向速度方向

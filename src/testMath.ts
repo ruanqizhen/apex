@@ -61,6 +61,7 @@ const createMockState = (): WorldState => {
     lastRehashRadius: getRadiusFromMass(100),
     magnetUntil: null,
     shieldActive: false,
+    inkCooldownUntil: null,
   };
 
   return {

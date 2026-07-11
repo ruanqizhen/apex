@@ -46,6 +46,9 @@ export interface AIEntity extends BaseEntity {
   speciesIndex: number;       // 视觉品种索引，用于确定该实体的外观变体
   itemType?: ItemType;        // 道具具体类型
   frozenUntil?: number | null;// 冰冻截至时间戳，为 null 或已过期表示未被冰冻
+  chargeTimer?: number;       // 剑鱼冲撞阶段计时器
+  chargePhase?: 'normal' | 'charging' | 'stunned'; // 冲撞阶段
+  chargeTarget?: Vector2;     // 冲撞目标坐标点
 }
 
 export interface MutationInstance {
@@ -74,6 +77,7 @@ export interface GameStoreActions {
   onEat?: () => void;
   onLevelUp?: () => void;
   onGameOver?: () => void;
+  triggerActiveSkill?: () => void; // 主动技能释放 (Task 1)
 }
 
 export interface Player extends BaseEntity {
@@ -90,11 +94,12 @@ export interface Player extends BaseEntity {
   lastRehashRadius: number;     // 上一次 rehash 时的玩家半径
   magnetUntil: number | null;   // 磁力吸入增益到期逻辑时钟时间戳
   shieldActive: boolean;        // 气泡护盾是否开启
+  inkCooldownUntil: number | null; // 主动技能墨汁冷却截止逻辑时钟时间戳 (Task 1)
 }
 
 export interface ParticleEvent {
   id: string;
-  kind: "eat_burst" | "bubble_trail" | "combo_flash" | "shield_break" | "eaten_prey" | "item_pickup" | "freeze_wave";
+  kind: "eat_burst" | "bubble_trail" | "combo_flash" | "shield_break" | "eaten_prey" | "item_pickup" | "freeze_wave" | "ink_cloud";
   position: Vector2;
   createdAt: number;
   ttlMs: number;

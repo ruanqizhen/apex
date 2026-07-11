@@ -217,6 +217,26 @@ export function drawParticles(
       ctx.arc(p.position.x, p.position.y, currentRadius * 0.7, 0, Math.PI * 2);
       ctx.stroke();
     }
+    else if (p.kind === 'ink_cloud') {
+      // 墨汁云雾粒子 (缓慢散开退色的黑障烟圈 - Task 10)
+      const maxRadius = p.meta?.radius || 120;
+      // 烟气轻微脉动扩大
+      const currentRadius = maxRadius * (0.65 + 0.35 * Math.sin(progress * Math.PI * 0.5));
+      
+      const grad = ctx.createRadialGradient(
+        p.position.x - currentRadius * 0.1, p.position.y - currentRadius * 0.1, 0,
+        p.position.x, p.position.y, currentRadius
+      );
+      grad.addColorStop(0, `rgba(10, 7, 16, ${alpha * 0.85})`);
+      grad.addColorStop(0.3, `rgba(8, 5, 12, ${alpha * 0.7})`);
+      grad.addColorStop(0.7, `rgba(5, 3, 8, ${alpha * 0.35})`);
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(p.position.x, p.position.y, currentRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   ctx.restore();

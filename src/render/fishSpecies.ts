@@ -431,7 +431,7 @@ const PREDATOR_SPECIES: FishSpecies[] = [
     tailShape: 'fan',
     tailSize: 0.7,
     pattern: 'bioluminescent',
-    patternColor: 'rgba(255, 200, 100, 0.9)',
+    patternColor: 'rgba(255, 120, 40, 0.9)',
     patternCount: 0,
     eyeColor: '#ff8844',
     eyeSize: 0.2,
@@ -440,6 +440,56 @@ const PREDATOR_SPECIES: FishSpecies[] = [
     bodyWaveAmplitude: 0.02,
     glowColor: 'rgba(255, 120, 40, 0.5)',
     glowIntensity: 0.6,
+  },
+  {
+    // 变色巨乌贼 (Stealth Squid) - Task 7
+    name: '变色巨乌贼',
+    bodyShape: 'elongated',
+    bodyAspect: 1.6,
+    bodyColor: 'rgba(90, 100, 110, 0.95)', // 灰色主调
+    bellyColor: 'rgba(140, 150, 160, 0.8)',
+    finColor: 'rgba(6, 182, 212, 0.7)',
+    finAlpha: 0.85,
+    dorsalFinHeight: 0,
+    dorsalFinLength: 0,
+    pectoralFinSize: 0.35,
+    tailShape: 'flowing',
+    tailSize: 0.6,
+    pattern: 'bioluminescent',
+    patternColor: 'rgba(6, 182, 212, 0.95)', // 亮青发光斑纹
+    patternCount: 0,
+    eyeColor: '#06b6d4',
+    eyeSize: 0.22,
+    swimFrequency: 0.7,
+    swimAmplitude: 0.85,
+    bodyWaveAmplitude: 0.04,
+    glowColor: 'rgba(6, 182, 212, 0.55)',
+    glowIntensity: 0.7,
+  },
+  {
+    // 冲撞剑鱼 (Spearfish) - Task 7
+    name: '冲撞剑鱼',
+    bodyShape: 'fusiform',
+    bodyAspect: 2.1,
+    bodyColor: '#334e68',
+    bellyColor: '#627d98',
+    finColor: '#102a43',
+    finAlpha: 0.8,
+    dorsalFinHeight: 0.75, // 高高的背鳍像帆
+    dorsalFinLength: 0.55,
+    pectoralFinSize: 0.4,
+    tailShape: 'crescent',
+    tailSize: 1.25, // 强壮大月牙尾
+    pattern: 'stripes',
+    patternColor: '#486581',
+    patternCount: 4,
+    eyeColor: '#ffc72c',
+    eyeSize: 0.16,
+    swimFrequency: 1.4, // 高频摆动
+    swimAmplitude: 1.2,
+    bodyWaveAmplitude: 0.06,
+    glowColor: 'rgba(244, 197, 66, 0.4)',
+    glowIntensity: 0.45,
   },
 ];
 

@@ -38,6 +38,9 @@ export class EntityPool {
       speciesIndex: 0,
       itemType: undefined,
       frozenUntil: null,
+      chargeTimer: undefined,
+      chargePhase: undefined,
+      chargeTarget: undefined,
     };
   }
 
@@ -47,6 +50,9 @@ export class EntityPool {
     entity.targetEntityId = null;
     entity.itemType = undefined;
     entity.frozenUntil = null;
+    entity.chargeTimer = undefined;
+    entity.chargePhase = undefined;
+    entity.chargeTarget = undefined;
     this.aiEntities.push(entity);
   }
 

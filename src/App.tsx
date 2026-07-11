@@ -53,20 +53,32 @@ export default function App() {
       }
     };
 
-    const handleMouseDown = () => {
+    const handleMouseDown = (e: MouseEvent) => {
       if (status === 'playing') {
-        actions.setDashing(true);
+        if (e.button === 2) {
+          // 右键释放主动技能 (Task 11)
+          actions.triggerActiveSkill?.();
+        } else {
+          actions.setDashing(true);
+        }
       }
     };
 
-    const handleMouseUp = () => {
-      actions.setDashing(false);
+    const handleMouseUp = (e: MouseEvent) => {
+      if (e.button !== 2) {
+        actions.setDashing(false);
+      }
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (status === 'playing' && e.code === 'Space') {
-        actions.setDashing(true);
-        e.preventDefault();
+      if (status === 'playing') {
+        if (e.code === 'Space') {
+          actions.setDashing(true);
+          e.preventDefault();
+        } else if (e.code === 'KeyQ') {
+          // Q 键释放主动技能 (Task 11)
+          actions.triggerActiveSkill?.();
+        }
       }
     };
 
@@ -76,12 +88,17 @@ export default function App() {
       }
     };
 
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault(); // 阻止右键菜单弹出，保证右键触发技能流畅
+    };
+
     // 注册输入监听器
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('contextmenu', handleContextMenu);
 
     // 启动渲染/游戏循环 (不包含自动调用 startGame，进入游戏由 UI 点击触发)
     GameLoop.start();
@@ -93,6 +110,7 @@ export default function App() {
       window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('contextmenu', handleContextMenu);
       GameLoop.stop();
     };
   }, [actions, status]);

@@ -41,6 +41,29 @@ export function aiSystem(state: WorldState, dt: number) {
       return;
     }
 
+    // 检查墨汁致盲：如果在墨汁里，且是掠食者，则失去目标退回巡游状态 (Task 5)
+    let isInInk = false;
+    for (let i = 0; i < state.particles.length; i++) {
+      const p = state.particles[i];
+      if (p.kind === 'ink_cloud') {
+        const dx = entity.position.x - p.position.x;
+        const dy = entity.position.y - p.position.y;
+        const dist = Math.hypot(dx, dy);
+        const inkRadius = p.meta?.radius || 120;
+        if (dist < inkRadius) {
+          isInInk = true;
+          break;
+        }
+      }
+    }
+
+    if (isInInk && entity.type === EntityType.Predator) {
+      if (entity.aiState === AIState.Pursue || entity.aiState === AIState.Attack) {
+        entity.aiState = AIState.Wander;
+        entity.targetEntityId = null;
+      }
+    }
+
     // 1. 浮游生物 (Plankton)
     if (entity.type === EntityType.Plankton) {
       // 每 500ms 产生一次漂移 (在固定步长中检查是否越过 500ms 边界)
@@ -119,6 +142,77 @@ export function aiSystem(state: WorldState, dt: number) {
     }
 
     // 4. 根据当前状态执行行为 (计算 velocity)
+    if (entity.type === EntityType.Predator && entity.speciesIndex === 4) {
+      // 冲撞剑鱼特殊行为覆盖 (Task 5)
+      if (!entity.chargePhase) {
+        entity.chargePhase = 'normal';
+        entity.chargeTimer = clock + 2000; // 首次相遇前 2 秒内不冲锋
+      }
+
+      if (entity.chargePhase === 'charging') {
+        if (clock >= (entity.chargeTimer ?? 0)) {
+          // 冲刺时间到，进入眩晕脱力状态 1.5 秒
+          entity.chargePhase = 'stunned';
+          entity.chargeTimer = clock + 1500;
+        } else {
+          // 笔直冲向锁定的目标位置
+          const toTarget = {
+            x: entity.chargeTarget!.x - entity.position.x,
+            y: entity.chargeTarget!.y - entity.position.y
+          };
+          const distToTarget = Math.hypot(toTarget.x, toTarget.y);
+          const dir = distToTarget > 0.01 ? { x: toTarget.x / distToTarget, y: toTarget.y / distToTarget } : { x: 1, y: 0 };
+          
+          entity.velocity = {
+            x: dir.x * entity.baseSpeed * 3.5,
+            y: dir.y * entity.baseSpeed * 3.5
+          };
+          
+          // 极速冲刺时强行更新朝向
+          entity.facing = Math.atan2(dir.y, dir.x);
+          return; // 跳过后续通用 AI 运动速度更新
+        }
+      }
+
+      if (entity.chargePhase === 'stunned') {
+        if (clock >= (entity.chargeTimer ?? 0)) {
+          // 眩晕结束，恢复正常游动，并设置 4 秒技能冷却
+          entity.chargePhase = 'normal';
+          entity.chargeTimer = clock + 4000;
+        } else {
+          // 眩晕脱力：沿原朝向极其慢地滑行
+          entity.velocity = {
+            x: Math.cos(entity.facing) * entity.baseSpeed * 0.15,
+            y: Math.sin(entity.facing) * entity.baseSpeed * 0.15
+          };
+          return; // 跳过后续通用 AI 运动速度更新
+        }
+      }
+
+      // 如果在 normal 状态，CD 到了，且正在追击/攻击玩家，则锁定制导发起冲刺
+      if (entity.chargePhase === 'normal' && (entity.aiState === AIState.Pursue || entity.aiState === AIState.Attack)) {
+        if (clock >= (entity.chargeTimer ?? 0) && distToPlayer < actualPerception) {
+          entity.chargePhase = 'charging';
+          entity.chargeTimer = clock + 1000; // 冲锋持续 1.0 秒
+          entity.chargeTarget = { ...player.position }; // 锁定当前玩家坐标
+
+          const toTarget = {
+            x: entity.chargeTarget.x - entity.position.x,
+            y: entity.chargeTarget.y - entity.position.y
+          };
+          const distToTarget = Math.hypot(toTarget.x, toTarget.y);
+          const dir = distToTarget > 0.1 ? { x: toTarget.x / distToTarget, y: toTarget.y / distToTarget } : { x: 1, y: 0 };
+          
+          entity.facing = Math.atan2(dir.y, dir.x);
+          entity.velocity = {
+            x: dir.x * entity.baseSpeed * 3.5,
+            y: dir.y * entity.baseSpeed * 3.5
+          };
+          return; // 跳过后续通用 AI 逻辑
+        }
+      }
+    }
+
     if (entity.aiState === AIState.Wander || entity.aiState === AIState.Idle) {
       // 检查是否到达 Wander 目标，或者目标不存在
       const distToTarget = getDistance(entity.position, entity.wanderTarget);

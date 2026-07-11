@@ -38,13 +38,13 @@ export const CanvasRenderer = {
     // 绘制普通 AI 生态实体
     entities.forEach((entity) => {
       if (entity.isAlive) {
-        drawEntity(ctx, entity, logicalClockMs);
+        drawEntity(ctx, entity, state);
       }
     });
 
     // 绘制玩家自己
     if (player.isAlive) {
-      drawEntity(ctx, player, logicalClockMs);
+      drawEntity(ctx, player, state);
     }
 
     // 绘制爆发与拖尾粒子 (传入玩家坐标用于吞噬物理吸入动画)
