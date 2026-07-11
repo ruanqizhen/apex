@@ -128,26 +128,43 @@ export function drawParticles(
       ctx.beginPath();
       ctx.arc(px, py, Math.max(0.6, size * (1 - progress * 0.6)), 0, Math.PI * 2);
       ctx.stroke();
-    } 
-    else if (p.kind === 'shield_break') {
-      // 骨盾破裂：金黄色碎片向外溅射
+    }     else if (p.kind === 'shield_break') {
+      const isBubble = p.meta?.isBubble === 1;
       const count = 12;
       const maxDist = 55;
       const dist = progress * maxDist;
-      ctx.strokeStyle = `rgba(244, 197, 66, ${alpha})`;
-      ctx.lineWidth = 2.5;
+      
+      if (isBubble) {
+        // 气泡护盾破裂：向外扩散的浅蓝色小气泡
+        ctx.strokeStyle = `rgba(56, 189, 248, ${alpha * 0.8})`;
+        ctx.fillStyle = `rgba(186, 230, 253, ${alpha * 0.45})`;
+        ctx.lineWidth = 1.5;
+        for (let j = 0; j < count; j++) {
+          const angle = (j / count) * Math.PI * 2 + progress * 0.5;
+          const px = p.position.x + Math.cos(angle) * dist;
+          const py = p.position.y + Math.sin(angle) * dist;
+          ctx.beginPath();
+          ctx.arc(px, py, Math.max(1, 4 * (1 - progress)), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+      } else {
+        // 骨盾破裂：金黄色碎片向外溅射
+        ctx.strokeStyle = `rgba(244, 197, 66, ${alpha})`;
+        ctx.lineWidth = 2.5;
 
-      for (let j = 0; j < count; j++) {
-        const angle = (j / count) * Math.PI * 2 + progress * 1.5;
-        const px1 = p.position.x + Math.cos(angle) * dist;
-        const py1 = p.position.y + Math.sin(angle) * dist;
-        const px2 = p.position.x + Math.cos(angle) * (dist + 8);
-        const py2 = p.position.y + Math.sin(angle) * (dist + 8);
+        for (let j = 0; j < count; j++) {
+          const angle = (j / count) * Math.PI * 2 + progress * 1.5;
+          const px1 = p.position.x + Math.cos(angle) * dist;
+          const py1 = p.position.y + Math.sin(angle) * dist;
+          const px2 = p.position.x + Math.cos(angle) * (dist + 8);
+          const py2 = p.position.y + Math.sin(angle) * (dist + 8);
 
-        ctx.beginPath();
-        ctx.moveTo(px1, py1);
-        ctx.lineTo(px2, py2);
-        ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(px1, py1);
+          ctx.lineTo(px2, py2);
+          ctx.stroke();
+        }
       }
     } 
     else if (p.kind === 'combo_flash') {
@@ -159,6 +176,45 @@ export function drawParticles(
       
       ctx.beginPath();
       ctx.arc(p.position.x, p.position.y, currentRadius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    else if (p.kind === 'item_pickup') {
+      // 道具捡起爆发星芒粒子效果
+      const count = 16;
+      const dist = progress * 45;
+      const colorType = p.meta?.colorType ?? 0;
+      let color = 'rgba(251, 191, 36, '; // 默认黄色 (Shield)
+      if (colorType === 0) color = 'rgba(244, 63, 94, '; // 磁铁玫瑰红
+      else if (colorType === 1) color = 'rgba(6, 182, 212, '; // 冰冻青色
+
+      ctx.fillStyle = `${color}${alpha})`;
+      for (let j = 0; j < count; j++) {
+        const angle = (j / count) * Math.PI * 2 + progress * 2.0;
+        const px = p.position.x + Math.cos(angle) * dist;
+        const py = p.position.y + Math.sin(angle) * dist;
+        
+        ctx.beginPath();
+        ctx.arc(px, py, Math.max(1.0, 3.5 * (1 - progress)), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    else if (p.kind === 'freeze_wave') {
+      // 冰冻冲击波全屏波纹效果 (浅蓝色向外扩散双环)
+      const maxRadius = p.meta?.radius || 300;
+      const currentRadius = progress * maxRadius;
+      
+      // 外部大环
+      ctx.strokeStyle = `rgba(56, 189, 248, ${alpha * 0.7})`;
+      ctx.lineWidth = 4.0 * (1 - progress);
+      ctx.beginPath();
+      ctx.arc(p.position.x, p.position.y, currentRadius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 内部小环
+      ctx.strokeStyle = `rgba(186, 230, 253, ${alpha * 0.4})`;
+      ctx.lineWidth = 2.0 * (1 - progress);
+      ctx.beginPath();
+      ctx.arc(p.position.x, p.position.y, currentRadius * 0.7, 0, Math.PI * 2);
       ctx.stroke();
     }
   }

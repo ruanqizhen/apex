@@ -36,6 +36,8 @@ export class EntityPool {
       wanderTarget: { x: 0, y: 0 },
       targetEntityId: null,
       speciesIndex: 0,
+      itemType: undefined,
+      frozenUntil: null,
     };
   }
 
@@ -43,6 +45,8 @@ export class EntityPool {
     entity.isAlive = false;
     entity.id = "";
     entity.targetEntityId = null;
+    entity.itemType = undefined;
+    entity.frozenUntil = null;
     this.aiEntities.push(entity);
   }
 

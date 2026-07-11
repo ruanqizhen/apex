@@ -1,7 +1,7 @@
 // src/render/drawEntity.ts
 // 逼真鱼类渲染系统 — 贝塞尔曲线鱼身、品种花纹、鳍部细节、S型游泳动画
 
-import { BaseEntity, EntityType, Player, AIEntity } from '../engine/types';
+import { BaseEntity, EntityType, Player, AIEntity, ItemType } from '../engine/types';
 import { getSpecies, FishSpecies } from './fishSpecies';
 
 // ══════════════════════════════════════════════
@@ -25,7 +25,17 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, lo
     return;
   }
 
+  // ── 道具专用渲染 (Task 8) ──
+  if (type === EntityType.Item) {
+    drawItem(ctx, entity as AIEntity, logicalClockMs);
+    ctx.restore();
+    return;
+  }
+
   // ── 鱼类实体 ──
+  // 计算冰冻状态
+  const isFrozen = type !== EntityType.Player && (entity as AIEntity).frozenUntil !== null && (entity as AIEntity).frozenUntil! > logicalClockMs;
+
   // 计算动画参数
   const isPlayer = type === EntityType.Player;
   const player = isPlayer ? entity as Player : null;
@@ -34,10 +44,10 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, lo
   const speed = Math.hypot(entity.velocity.x, entity.velocity.y);
   const speedFactor = Math.min(2.0, 0.3 + speed * 0.8); // 速度影响摆尾
 
-  // 时间驱动的基础摆动相位
+  // 时间驱动的基础摆动相位 (若被冰冻，摆尾幅度强行归 0，呈现僵直 - Task 8)
   const phase = logicalClockMs * 0.012 * species.swimFrequency * freqMul;
-  const tailSwing = Math.sin(phase) * radius * 0.35 * species.swimAmplitude * speedFactor;
-  const bodyWave = Math.sin(phase + 0.5) * radius * species.bodyWaveAmplitude * speedFactor;
+  const tailSwing = isFrozen ? 0 : Math.sin(phase) * radius * 0.35 * species.swimAmplitude * speedFactor;
+  const bodyWave = isFrozen ? 0 : Math.sin(phase + 0.5) * radius * species.bodyWaveAmplitude * speedFactor;
 
   // 吞食张嘴和膨胀动画
   let gulpScale = 1.0;
@@ -91,7 +101,12 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, lo
     drawPredatorDecor(ctx, species, bodyLen, bodyHeight, radius, speciesIndex, logicalClockMs);
   }
 
-  // ── Player 专属效果 ──
+  // ── 冰冻结冰表面层 (Task 8) ──
+  if (isFrozen) {
+    drawFreezeOverlay(ctx, bodyLen, bodyHeight, radius, bodyPath);
+  }
+
+  // ── Player 专属效果 (加入磁铁、气泡护盾绘制 - Task 8) ──
   if (isPlayer) {
     drawPlayerEffects(ctx, player!, species, bodyLen, bodyHeight, radius, logicalClockMs, bodyPath);
   }
@@ -217,6 +232,133 @@ function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, species
     ctx.arc(0, 0, r * 1.5 * pulse, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+// ══════════════════════════════════════════════
+//  道具专用渲染 (Task 8)
+// ══════════════════════════════════════════════
+function drawItem(ctx: CanvasRenderingContext2D, entity: AIEntity, clockMs: number) {
+  const r = entity.radius;
+  const itemType = entity.itemType;
+  const pulse = 1.0 + 0.15 * Math.sin(clockMs * 0.005);
+  const rot = clockMs * 0.001;
+
+  ctx.save();
+  ctx.rotate(rot);
+
+  // 外围辉光
+  ctx.shadowBlur = r * 1.6;
+  if (itemType === ItemType.Magnet) {
+    ctx.shadowColor = '#f43f5e';
+  } else if (itemType === ItemType.Freeze) {
+    ctx.shadowColor = '#06b6d4';
+  } else {
+    ctx.shadowColor = '#fbbf24';
+  }
+
+  // 绘制水晶珍珠底盘
+  ctx.beginPath();
+  ctx.arc(0, 0, r * pulse, 0, Math.PI * 2);
+  const grad = ctx.createRadialGradient(-r * 0.2, -r * 0.2, 0, 0, 0, r * pulse);
+  grad.addColorStop(0, '#ffffff');
+  if (itemType === ItemType.Magnet) {
+    grad.addColorStop(0.35, '#f43f5e');
+    grad.addColorStop(1, '#9f1239');
+  } else if (itemType === ItemType.Freeze) {
+    grad.addColorStop(0.35, '#38bdf8');
+    grad.addColorStop(1, '#0369a1');
+  } else {
+    grad.addColorStop(0.35, '#fbbf24');
+    grad.addColorStop(1, '#b45309');
+  }
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+
+  // 绘制内部白色标志性线条
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.8;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  if (itemType === ItemType.Magnet) {
+    // 马蹄铁磁铁标志
+    ctx.beginPath();
+    ctx.arc(0, r * 0.15, r * 0.35, Math.PI, 0, true);
+    ctx.lineTo(r * 0.35, -r * 0.25);
+    ctx.moveTo(-r * 0.35, r * 0.15);
+    ctx.lineTo(-r * 0.35, -r * 0.25);
+    ctx.stroke();
+
+    // 红蓝磁极涂色
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(-r * 0.44, -r * 0.35, r * 0.18, r * 0.2);
+    ctx.fillStyle = '#3b82f6';
+    ctx.fillRect(r * 0.26, -r * 0.35, r * 0.18, r * 0.2);
+  } else if (itemType === ItemType.Freeze) {
+    // 雪花晶体标志
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.55); ctx.lineTo(0, r * 0.55);
+    ctx.moveTo(-r * 0.55, 0); ctx.lineTo(r * 0.55, 0);
+    const d = r * 0.38;
+    ctx.moveTo(-d, -d); ctx.lineTo(d, d);
+    ctx.moveTo(d, -d); ctx.lineTo(-d, d);
+    ctx.stroke();
+  } else {
+    // 保护盾气泡环标志
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.45, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+// ══════════════════════════════════════════════
+//  冰冻结冰图层 (Task 8)
+// ══════════════════════════════════════════════
+function drawFreezeOverlay(
+  ctx: CanvasRenderingContext2D,
+  bodyLen: number,
+  bodyHeight: number,
+  radius: number,
+  bodyPath: Path2D
+) {
+  ctx.save();
+  ctx.clip(bodyPath);
+
+  // 半透明淡蓝色结冰图层
+  ctx.fillStyle = 'rgba(186, 230, 253, 0.45)';
+  ctx.fill(bodyPath);
+
+  // 绘制冰裂纹纹理
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.lineWidth = Math.max(0.6, radius * 0.04);
+  ctx.beginPath();
+  // 冰折线 1
+  ctx.moveTo(-bodyLen * 0.2, -bodyHeight * 0.2);
+  ctx.lineTo(0, bodyHeight * 0.1);
+  ctx.lineTo(bodyLen * 0.2, -bodyHeight * 0.1);
+  // 冰折线 2
+  ctx.moveTo(-bodyLen * 0.1, bodyHeight * 0.3);
+  ctx.lineTo(-bodyLen * 0.2, -bodyHeight * 0.1);
+  ctx.stroke();
+
+  ctx.restore();
+
+  // 外围冰霜霜气亮轮廓
+  ctx.save();
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
+  ctx.lineWidth = radius * 0.08;
+  ctx.shadowBlur = radius * 0.2;
+  ctx.shadowColor = '#0284c7';
+  ctx.stroke(bodyPath);
+  ctx.restore();
 }
 
 // ══════════════════════════════════════════════
@@ -708,6 +850,69 @@ function drawPlayerEffects(
   bodyPath: Path2D
 ) {
   const lvl = player.evolutionLevel;
+
+  // 1. 磁力光晕效果 (Task 8)
+  const isMagnetActive = player.magnetUntil !== null && player.magnetUntil > clockMs;
+  if (isMagnetActive) {
+    ctx.save();
+    const magnetPulse = 1.0 + 0.1 * Math.sin(clockMs * 0.01);
+    const magnetGrad = ctx.createRadialGradient(0, 0, radius, 0, 0, radius * 3.5 * magnetPulse);
+    magnetGrad.addColorStop(0, 'rgba(244, 63, 94, 0.0)');
+    magnetGrad.addColorStop(0.5, 'rgba(244, 63, 94, 0.05)');
+    magnetGrad.addColorStop(0.85, 'rgba(59, 130, 246, 0.15)');
+    magnetGrad.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+    ctx.fillStyle = magnetGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 3.5 * magnetPulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 绘制几条向玩家嘴部收拢的虚线磁力波
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 10]);
+    ctx.beginPath();
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 2 + clockMs * 0.0015;
+      const startDist = radius * 3.5 * magnetPulse;
+      const endDist = radius * 1.1;
+      const sx = Math.cos(angle) * startDist;
+      const sy = Math.sin(angle) * startDist;
+      const ex = Math.cos(angle) * endDist;
+      const ey = Math.sin(angle) * endDist;
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ex, ey);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  // 2. 气泡防口噬护盾外层 (Task 8)
+  if (player.shieldActive) {
+    ctx.save();
+    const bubblePulse = 1.0 + 0.04 * Math.sin(clockMs * 0.006);
+    const shieldR_X = bodyLen * 0.68 * bubblePulse;
+    const shieldR_Y = bodyHeight * 1.35 * bubblePulse;
+
+    const shieldGrad = ctx.createRadialGradient(0, 0, shieldR_Y * 0.6, 0, 0, shieldR_Y);
+    shieldGrad.addColorStop(0, 'rgba(56, 189, 248, 0.0)');
+    shieldGrad.addColorStop(0.8, 'rgba(56, 189, 248, 0.08)');
+    shieldGrad.addColorStop(0.95, 'rgba(255, 255, 255, 0.45)');
+    shieldGrad.addColorStop(1, 'rgba(186, 230, 253, 0.15)');
+
+    ctx.fillStyle = shieldGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, shieldR_X, shieldR_Y, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 绘制反光的亮白色气泡高光边缘
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(-shieldR_X * 0.35, -shieldR_Y * 0.35, shieldR_Y * 0.25, Math.PI, Math.PI * 1.5);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   // Level 6+ 发光花纹
   if (lvl >= 6) {

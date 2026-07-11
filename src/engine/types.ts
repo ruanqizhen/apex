@@ -8,6 +8,13 @@ export enum EntityType {
   Competitor = "competitor",
   Predator = "predator",
   Player = "player",
+  Item = "item",
+}
+
+export enum ItemType {
+  Magnet = "magnet",
+  Freeze = "freeze",
+  Shield = "shield",
 }
 
 export enum AIState {
@@ -37,6 +44,8 @@ export interface AIEntity extends BaseEntity {
   wanderTarget: Vector2;
   targetEntityId: string | null;
   speciesIndex: number;       // 视觉品种索引，用于确定该实体的外观变体
+  itemType?: ItemType;        // 道具具体类型
+  frozenUntil?: number | null;// 冰冻截至时间戳，为 null 或已过期表示未被冰冻
 }
 
 export interface MutationInstance {
@@ -79,11 +88,13 @@ export interface Player extends BaseEntity {
   evolutionLevel: number;
   isInvulnerableUntil: number | null;
   lastRehashRadius: number;     // 上一次 rehash 时的玩家半径
+  magnetUntil: number | null;   // 磁力吸入增益到期逻辑时钟时间戳
+  shieldActive: boolean;        // 气泡护盾是否开启
 }
 
 export interface ParticleEvent {
   id: string;
-  kind: "eat_burst" | "bubble_trail" | "combo_flash" | "shield_break" | "eaten_prey";
+  kind: "eat_burst" | "bubble_trail" | "combo_flash" | "shield_break" | "eaten_prey" | "item_pickup" | "freeze_wave";
   position: Vector2;
   createdAt: number;
   ttlMs: number;

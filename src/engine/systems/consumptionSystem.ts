@@ -1,6 +1,6 @@
 // src/engine/systems/consumptionSystem.ts
 
-import { WorldState, EntityType, AIEntity, ParticleEvent } from '../types';
+import { WorldState, EntityType, AIEntity, ParticleEvent, ItemType } from '../types';
 import { GAME_CONFIG, getRadiusFromMass } from '../../config/gameConfig';
 import { EntityPool } from '../entityPool';
 import { getSpecies } from '../../render/fishSpecies';
@@ -59,8 +59,8 @@ export function consumptionSystem(
     const reach = player.radius + entity.radius * eatEngulfMultiplier;
 
     if (dist < reach) {
-      // 判定是否可被玩家吞下 (比玩家小，或者类型是 plankton / prey)
-      if (entity.radius <= player.radius || entity.type === EntityType.Plankton || entity.type === EntityType.Prey) {
+      // 判定是否可被玩家吞下 (比玩家小，或者类型是 plankton / prey / item)
+      if (entity.radius <= player.radius || entity.type === EntityType.Plankton || entity.type === EntityType.Prey || entity.type === EntityType.Item) {
         eatableCandidates.push(entity);
       } 
       // 判定是否对玩家致命 (Predator 且玩家半径小于其 77%)
@@ -88,54 +88,89 @@ export function consumptionSystem(
       entity.isAlive = false;
       state.actions?.onEat?.();
 
-      // 质量吸收 (高效消化突变: 效率 +10%，加算到 EAT_EFFICIENCY)
-      const gutStacks = player.mutations.find(m => m.id === 'mut_efficient_gut')?.stacks || 0;
-      const efficiency = GAME_CONFIG.EAT_EFFICIENCY * (1.0 + 0.1 * gutStacks);
-      
-      const massGain = entity.mass * efficiency;
-      player.mass += massGain;
-      player.radius = getRadiusFromMass(player.mass);
+      if (entity.type === EntityType.Item) {
+        // 道具特殊处理：不改变玩家质量，激活对应道具效果
+        if (entity.itemType === ItemType.Magnet) {
+          player.magnetUntil = clock + 10000; // 磁吸持续 10 秒
+        } else if (entity.itemType === ItemType.Freeze) {
+          // 冰冻除了道具以外的所有 AI 实体 5 秒
+          state.entities.forEach((e) => {
+            if (e.isAlive && e.type !== EntityType.Item) {
+              e.frozenUntil = clock + 5000;
+            }
+          });
+          // 释放全屏冰冻波粒子
+          emitParticle({
+            kind: 'freeze_wave',
+            position: { ...player.position },
+            ttlMs: 600,
+            meta: {
+              radius: player.radius * 8.0
+            }
+          });
+        } else if (entity.itemType === ItemType.Shield) {
+          player.shieldActive = true;
+        }
 
-      // 更新连击与统计
-      eatenCountThisTick++;
-      player.comboCount = Math.min(GAME_CONFIG.COMBO_MAX, player.comboCount + 1);
-      player.comboLastEatAt = clock;
+        // 触发 item_pickup 粒子效果，用 meta 传递颜色类型
+        emitParticle({
+          kind: 'item_pickup',
+          position: { ...entity.position },
+          ttlMs: 500,
+          meta: {
+            colorType: entity.itemType === ItemType.Magnet ? 0 : entity.itemType === ItemType.Freeze ? 1 : 2
+          }
+        });
+      } else {
+        // 执行普通吞噬质量积累
+        const gutStacks = player.mutations.find(m => m.id === 'mut_efficient_gut')?.stacks || 0;
+        const efficiency = GAME_CONFIG.EAT_EFFICIENCY * (1.0 + 0.1 * gutStacks);
+        
+        const massGain = entity.mass * efficiency;
+        player.mass += massGain;
+        player.radius = getRadiusFromMass(player.mass);
 
-      state.stats.totalEaten += 1;
-      if (player.mass > state.stats.maxMassReached) {
-        state.stats.maxMassReached = player.mass;
+        // 更新连击与统计
+        eatenCountThisTick++;
+        player.comboCount = Math.min(GAME_CONFIG.COMBO_MAX, player.comboCount + 1);
+        player.comboLastEatAt = clock;
+
+        state.stats.totalEaten += 1;
+        if (player.mass > state.stats.maxMassReached) {
+          state.stats.maxMassReached = player.mass;
+        }
+
+        // 获取被吞噬实体的品种定义并提取颜色
+        const species = getSpecies(entity.type, entity.speciesIndex ?? 0);
+        const { r: colorR, g: colorG, b: colorB } = parseColorToRgb(species.bodyColor);
+
+        // 触发 eat_burst 粒子
+        emitParticle({
+          kind: 'eat_burst',
+          position: { ...entity.position },
+          ttlMs: 400 + Math.random() * 200,
+          meta: {
+            radius: entity.radius,
+            colorR,
+            colorG,
+            colorB
+          }
+        });
+
+        // 触发被吸入/吞食的动效粒子 (PRD 补充)
+        emitParticle({
+          kind: 'eaten_prey',
+          position: { ...entity.position },
+          ttlMs: 250, // 快速缩进吸入
+          meta: {
+            radius: entity.radius,
+            colorR,
+            colorG,
+            colorB,
+            facing: entity.facing
+          }
+        });
       }
-
-      // 获取被吞噬实体的品种定义并提取颜色
-      const species = getSpecies(entity.type, entity.speciesIndex ?? 0);
-      const { r: colorR, g: colorG, b: colorB } = parseColorToRgb(species.bodyColor);
-
-      // 触发 eat_burst 粒子
-      emitParticle({
-        kind: 'eat_burst',
-        position: { ...entity.position },
-        ttlMs: 400 + Math.random() * 200,
-        meta: {
-          radius: entity.radius,
-          colorR,
-          colorG,
-          colorB
-        }
-      });
-
-      // 触发被吸入/吞食的动效粒子 (PRD 补充)
-      emitParticle({
-        kind: 'eaten_prey',
-        position: { ...entity.position },
-        ttlMs: 250, // 快速缩进吸入
-        meta: {
-          radius: entity.radius,
-          colorR,
-          colorG,
-          colorB,
-          facing: entity.facing
-        }
-      });
 
       // 从地图与空间哈希中回收
       state.spatialHash.remove(entity);
@@ -160,18 +195,10 @@ export function consumptionSystem(
   if (lethalPredators.length > 0 && (!player.isInvulnerableUntil || player.isInvulnerableUntil <= clock)) {
     const predator = lethalPredators[0]; // 选取第一个致命掠食者
     
-    // 检查骨化重甲护盾 (mut_shield)
-    const shieldIndex = player.mutations.findIndex(m => m.id === 'mut_shield');
-    if (shieldIndex !== -1 && player.mutations[shieldIndex].stacks > 0) {
-      // 消耗一层
-      player.mutations[shieldIndex].stacks -= 1;
-      const finalStacks = player.mutations[shieldIndex].stacks;
-      if (finalStacks === 0) {
-        player.mutations.splice(shieldIndex, 1);
-      }
-
-      // 获得无敌帧 (1000ms)
-      player.isInvulnerableUntil = clock + 1000;
+    // 优先触发吃掉道具获得的气泡护盾 (Bubble Shield)
+    if (player.shieldActive) {
+      player.shieldActive = false;
+      player.isInvulnerableUntil = clock + 1500; // 获得 1.5 秒无敌保护
 
       // 击退攻击者并使玩家向反方向弹开
       const dx = player.position.x - predator.position.x;
@@ -180,28 +207,69 @@ export function consumptionSystem(
       const nx = dist > 0 ? dx / dist : 1;
       const ny = dist > 0 ? dy / dist : 0;
 
-      // 瞬移一定距离拉开重叠
-      const pushDist = player.radius + predator.radius + 50;
+      const pushDist = player.radius + predator.radius + 60;
       player.position.x = predator.position.x + nx * pushDist;
       player.position.y = predator.position.y + ny * pushDist;
 
-      // 反向速度
       player.velocity = {
-        x: nx * player.baseSpeed * 2.0,
-        y: ny * player.baseSpeed * 2.0
+        x: nx * player.baseSpeed * 2.5,
+        y: ny * player.baseSpeed * 2.5
       };
 
-      // 触发护盾破裂粒子
+      // 触发气泡破裂粒子 (isBubble: 1)
       emitParticle({
         kind: 'shield_break',
         position: { ...player.position },
-        ttlMs: 800
+        ttlMs: 800,
+        meta: {
+          isBubble: 1
+        }
       });
-    } else {
-      // 死亡结算
-      player.isAlive = false;
-      state.status = 'game_over';
-      state.actions?.onGameOver?.();
+    }
+    // 检查骨化重甲护盾 (mut_shield)
+    else {
+      const shieldIndex = player.mutations.findIndex(m => m.id === 'mut_shield');
+      if (shieldIndex !== -1 && player.mutations[shieldIndex].stacks > 0) {
+        // 消耗一层
+        player.mutations[shieldIndex].stacks -= 1;
+        const finalStacks = player.mutations[shieldIndex].stacks;
+        if (finalStacks === 0) {
+          player.mutations.splice(shieldIndex, 1);
+        }
+
+        // 获得无敌帧 (1000ms)
+        player.isInvulnerableUntil = clock + 1000;
+
+        // 击退攻击者并使玩家向反方向弹开
+        const dx = player.position.x - predator.position.x;
+        const dy = player.position.y - predator.position.y;
+        const dist = Math.hypot(dx, dy);
+        const nx = dist > 0 ? dx / dist : 1;
+        const ny = dist > 0 ? dy / dist : 0;
+
+        // 瞬移一定距离拉开重叠
+        const pushDist = player.radius + predator.radius + 50;
+        player.position.x = predator.position.x + nx * pushDist;
+        player.position.y = predator.position.y + ny * pushDist;
+
+        // 反向速度
+        player.velocity = {
+          x: nx * player.baseSpeed * 2.0,
+          y: ny * player.baseSpeed * 2.0
+        };
+
+        // 触发护盾破裂粒子
+        emitParticle({
+          kind: 'shield_break',
+          position: { ...player.position },
+          ttlMs: 800
+        });
+      } else {
+        // 死亡结算
+        player.isAlive = false;
+        state.status = 'game_over';
+        state.actions?.onGameOver?.();
+      }
     }
   }
 }

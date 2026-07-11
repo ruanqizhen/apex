@@ -7,6 +7,8 @@ import ComboBar from './ComboBar';
 export default function HUD() {
   const player = useStore(gameStore, (s) => s.player);
   const stats = useStore(gameStore, (s) => s.stats);
+  const entities = useStore(gameStore, (s) => s.entities);
+  const logicalClockMs = useStore(gameStore, (s) => s.logicalClockMs);
 
   const getTitle = (level: number) => {
     if (level === 0) return '浮游细胞';
@@ -23,6 +25,20 @@ export default function HUD() {
     const secs = totalSecs % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // 计算道具剩余时间 (Task 10)
+  const magnetTimeLeft = player.magnetUntil && player.magnetUntil > logicalClockMs
+    ? (player.magnetUntil - logicalClockMs) / 1000
+    : 0;
+
+  let freezeTimeLeft = 0;
+  for (const entity of entities.values()) {
+    if (entity.frozenUntil && entity.frozenUntil > logicalClockMs) {
+      freezeTimeLeft = Math.max(freezeTimeLeft, (entity.frozenUntil - logicalClockMs) / 1000);
+    }
+  }
+
+  const shieldActive = player.shieldActive;
 
   return (
     <div style={{
@@ -63,9 +79,66 @@ export default function HUD() {
         </div>
       </div>
 
-      {/* 中部：连击状态栏 */}
-      <div style={{ pointerEvents: 'auto' }}>
+      {/* 中部：连击状态栏与道具状态 (Task 10) */}
+      <div style={{
+        pointerEvents: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '10px'
+      }}>
         <ComboBar />
+        
+        {(magnetTimeLeft > 0 || freezeTimeLeft > 0 || shieldActive) && (
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            background: 'rgba(2, 7, 18, 0.75)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '20px',
+            padding: '6px 16px',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.4)',
+            backdropFilter: 'blur(4px)',
+            alignItems: 'center'
+          }}>
+            {shieldActive && (
+              <span style={{
+                color: '#fbbf24',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                🛡️ 护盾激活
+              </span>
+            )}
+            {magnetTimeLeft > 0 && (
+              <span style={{
+                color: '#f43f5e',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                🧲 磁力: {magnetTimeLeft.toFixed(1)}s
+              </span>
+            )}
+            {freezeTimeLeft > 0 && (
+              <span style={{
+                color: '#06b6d4',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                ❄️ 冰冻: {freezeTimeLeft.toFixed(1)}s
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 右侧：吞噬数与生存时长 */}

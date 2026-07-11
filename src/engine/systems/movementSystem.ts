@@ -1,6 +1,6 @@
 // src/engine/systems/movementSystem.ts
 
-import { WorldState, Vector2 } from '../types';
+import { WorldState, Vector2, EntityType } from '../types';
 import { GAME_CONFIG, getRadiusFromMass } from '../../config/gameConfig';
 
 export function movementSystem(state: WorldState, dt: number, emitParticle: (p: any) => void) {
@@ -112,9 +112,27 @@ export function movementSystem(state: WorldState, dt: number, emitParticle: (p: 
     if (!entity.isAlive) return;
 
     const prevPos = { ...entity.position };
+    
+    // 磁力吸入：当玩家吃掉磁铁且对象是浮游生物或小鱼时，施加磁力拉力
+    let pullX = 0;
+    let pullY = 0;
+    const isMagnetActive = player.magnetUntil !== null && player.magnetUntil > state.logicalClockMs;
+    if (isMagnetActive && (entity.type === EntityType.Plankton || entity.type === EntityType.Prey)) {
+      const dx = player.position.x - entity.position.x;
+      const dy = player.position.y - entity.position.y;
+      const dist = Math.hypot(dx, dy);
+      const magnetRange = player.radius * 6.0 + 120;
+      if (dist > 1 && dist < magnetRange) {
+        // 距离越近引力越大
+        const force = (1.0 - dist / magnetRange) * 8.0;
+        pullX = (dx / dist) * force;
+        pullY = (dy / dist) * force;
+      }
+    }
+
     entity.position = {
-      x: entity.position.x + entity.velocity.x,
-      y: entity.position.y + entity.velocity.y
+      x: entity.position.x + entity.velocity.x + pullX,
+      y: entity.position.y + entity.velocity.y + pullY
     };
 
     // 如果有速度，朝向面向速度方向

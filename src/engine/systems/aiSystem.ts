@@ -34,6 +34,13 @@ export function aiSystem(state: WorldState, dt: number) {
   state.entities.forEach((entity) => {
     if (!entity.isAlive) return;
 
+    // 检查冰冻状态：如果被冰冻，速度归零，并不再进行任何 AI 决策行为
+    const isFrozen = entity.frozenUntil !== undefined && entity.frozenUntil !== null && entity.frozenUntil > clock;
+    if (isFrozen) {
+      entity.velocity = { x: 0, y: 0 };
+      return;
+    }
+
     // 1. 浮游生物 (Plankton)
     if (entity.type === EntityType.Plankton) {
       // 每 500ms 产生一次漂移 (在固定步长中检查是否越过 500ms 边界)

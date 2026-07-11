@@ -46,6 +46,8 @@ const createInitialPlayer = (): Player => ({
   evolutionLevel: 0,
   isInvulnerableUntil: null,
   lastRehashRadius: initialPlayerRadius,
+  magnetUntil: null,
+  shieldActive: false,
 });
 
 export const gameStore = createStore<GameStore>((set, get) => {

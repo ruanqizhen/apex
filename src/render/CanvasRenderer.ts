@@ -87,21 +87,21 @@ export const CanvasRenderer = {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.roundRect(15, 15, 210, 150, 8);
+    ctx.roundRect(15, 110, 210, 150, 8);
     ctx.fill();
     ctx.stroke();
 
     ctx.font = 'bold 11px Courier New, monospace';
     ctx.fillStyle = '#4ade80';
-    ctx.fillText(`SYSTEM MONITOR [APEX]`, 25, 33);
+    ctx.fillText(`SYSTEM MONITOR [APEX]`, 25, 128);
     
     ctx.fillStyle = '#f3f4f6';
-    ctx.fillText(`FPS:            ${fps}`, 25, 55);
-    ctx.fillText(`ACTIVE AI:      ${state.entities.size}`, 25, 73);
-    ctx.fillText(`PARTICLES:      ${state.particles.length}`, 25, 91);
-    ctx.fillText(`CAM SCALE:      ${state.camera.scale.toFixed(4)}`, 25, 109);
-    ctx.fillText(`LOGIC CLOCK:    ${(state.logicalClockMs / 1000).toFixed(1)}s`, 25, 127);
-    ctx.fillText(`SURVIVED:       ${(state.stats.survivalMs / 1000).toFixed(1)}s`, 25, 145);
+    ctx.fillText(`FPS:            ${fps}`, 25, 150);
+    ctx.fillText(`ACTIVE AI:      ${state.entities.size}`, 25, 168);
+    ctx.fillText(`PARTICLES:      ${state.particles.length}`, 25, 186);
+    ctx.fillText(`CAM SCALE:      ${state.camera.scale.toFixed(4)}`, 25, 204);
+    ctx.fillText(`LOGIC CLOCK:    ${(state.logicalClockMs / 1000).toFixed(1)}s`, 25, 222);
+    ctx.fillText(`SURVIVED:       ${(state.stats.survivalMs / 1000).toFixed(1)}s`, 25, 240);
     
     ctx.restore();
   }

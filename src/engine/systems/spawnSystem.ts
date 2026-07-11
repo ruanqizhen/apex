@@ -1,6 +1,6 @@
 // src/engine/systems/spawnSystem.ts
 
-import { WorldState, EntityType, AIState, Vector2 } from '../types';
+import { WorldState, EntityType, AIState, Vector2, ItemType } from '../types';
 import { GAME_CONFIG, getRadiusFromMass } from '../../config/gameConfig';
 import { EntityPool } from '../entityPool';
 import { SPECIES_COUNT_MAP } from '../../render/fishSpecies';
@@ -51,17 +51,18 @@ export function spawnSystem(
   const currInterval = Math.floor(state.logicalClockMs / checkInterval);
 
   if (currInterval > prevInterval) {
-    // 统计各类实体数量
     let planktonCount = 0;
     let preyCount = 0;
     let competitorCount = 0;
     let predatorCount = 0;
+    let itemCount = 0;
 
     state.entities.forEach((entity) => {
       if (entity.type === EntityType.Plankton) planktonCount++;
       else if (entity.type === EntityType.Prey) preyCount++;
       else if (entity.type === EntityType.Competitor) competitorCount++;
       else if (entity.type === EntityType.Predator) predatorCount++;
+      else if (entity.type === EntityType.Item) itemCount++;
     });
 
     const spawnInner = viewportDiagonal * GAME_CONFIG.SPAWN_INNER_DIAGONAL_RATIO;
@@ -114,6 +115,15 @@ export function spawnSystem(
       }
     }
 
+    // 补充 Item (同屏上限为 3，每隔 5 秒尝试在边缘生成一个)
+    if (itemCount < 3) {
+      const prev5s = Math.floor(prevClock / 5000);
+      const curr5s = Math.floor(state.logicalClockMs / 5000);
+      if (curr5s > prev5s) {
+        spawnEntity(EntityType.Item, initialPlayerRadius);
+      }
+    }
+
     // 生成函数内部实现
     function spawnEntity(type: EntityType, playerInitialRadius: number) {
       let radius = 10;
@@ -154,6 +164,11 @@ export function spawnSystem(
         
         const speedGrowthFactor = Math.pow(radius / playerInitialRadius, 0.95);
         baseSpeed = GAME_CONFIG.BASE_SPEED * (speedScale + Math.random() * 0.15) * speedGrowthFactor;
+      }
+      else if (type === EntityType.Item) {
+        radius = 14;
+        perceptionRadius = 0;
+        baseSpeed = 0.08; // 道具在海中极为缓慢地漂移
       }
 
       // 重叠检查逻辑 (最多重试 5 次，PRD 13)
@@ -215,6 +230,14 @@ export function spawnSystem(
       entity.wanderTarget = { x: 0, y: 0 };
       entity.targetEntityId = null;
       entity.speciesIndex = Math.floor(Math.random() * (SPECIES_COUNT_MAP[type] || 1));
+
+      // 若为道具类型，随机指定具体的道具种类
+      if (type === EntityType.Item) {
+        const itemTypes = [ItemType.Magnet, ItemType.Freeze, ItemType.Shield];
+        entity.itemType = itemTypes[Math.floor(Math.random() * itemTypes.length)];
+      } else {
+        entity.itemType = undefined;
+      }
 
       // 登记进实体库与空间哈希表
       state.entities.set(id, entity);

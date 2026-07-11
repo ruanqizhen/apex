@@ -59,6 +59,8 @@ const createMockState = (): WorldState => {
     evolutionLevel: 0,
     isInvulnerableUntil: null,
     lastRehashRadius: getRadiusFromMass(100),
+    magnetUntil: null,
+    shieldActive: false,
   };
 
   return {
