@@ -51,8 +51,6 @@ export function collisionSystem(state: WorldState) {
   const player = state.player;
   if (!player.isAlive) return;
 
-  const entitiesList = Array.from(state.entities.values());
-
   // 1. 玩家与 AIs 碰撞
   // 查询玩家附近的实体
   const nearbyPlayerIds = state.spatialHash.queryNearby(player.position, player.radius * 2.5);
@@ -66,16 +64,16 @@ export function collisionSystem(state: WorldState) {
     const cannotEatEachOther = sizeRatio >= 0.8 && sizeRatio <= 1.25;
 
     if (isCompetitor || cannotEatEachOther) {
+      const prevPos = { ...entity.position };
       resolveElasticCollision(player, entity);
       
       // 更新空间哈希位置变动
-      state.spatialHash.update(entity, entity.position);
+      state.spatialHash.update(entity, prevPos);
     }
   }
 
-  // 2. AIs 之间的相互碰撞
-  for (let i = 0; i < entitiesList.length; i++) {
-    const A = entitiesList[i];
+  // 2. AIs 之间的相互碰撞 (直接使用迭代器遍历，避免 Array.from 产生的 GC 压力)
+  for (const A of state.entities.values()) {
     if (!A.isAlive || A.type === EntityType.Plankton) continue; // 浮游生物不发生碰撞
 
     const nearbyAI = state.spatialHash.queryNearby(A.position, A.radius * 2.5);

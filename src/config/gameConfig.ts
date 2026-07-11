@@ -113,11 +113,6 @@ export const GAME_CONFIG = {
   COLORS: {
     BACKGROUND_TOP: "#081d33",
     BACKGROUND_BOTTOM: "#020712",
-    PLANKTON: "#8FE3B0",
-    PREY: "#6FB7E0",
-    COMPETITOR: "#B48CE0",
-    PREDATOR: "#E05C5C",
-    PLAYER: "#F4C542",
   },
 };
 

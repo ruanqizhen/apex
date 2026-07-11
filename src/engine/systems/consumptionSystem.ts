@@ -3,6 +3,26 @@
 import { WorldState, EntityType, AIEntity, ParticleEvent } from '../types';
 import { GAME_CONFIG, getRadiusFromMass } from '../../config/gameConfig';
 import { EntityPool } from '../entityPool';
+import { getSpecies } from '../../render/fishSpecies';
+
+function parseColorToRgb(colorStr: string): { r: number; g: number; b: number } {
+  if (colorStr.startsWith('rgba') || colorStr.startsWith('rgb')) {
+    const match = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+      return { r: parseInt(match[1]), g: parseInt(match[2]), b: parseInt(match[3]) };
+    }
+  } else if (colorStr.startsWith('#')) {
+    const hex = colorStr.replace('#', '');
+    const num = parseInt(hex, 16);
+    return {
+      r: (num >> 16) & 255,
+      // Handle short hex formats like #333 or full #333333
+      g: hex.length === 3 ? ((num >> 4) & 15) * 17 : (num >> 8) & 255,
+      b: hex.length === 3 ? (num & 15) * 17 : num & 255
+    };
+  }
+  return { r: 143, g: 227, b: 176 }; // default fallback
+}
 
 export function consumptionSystem(
   state: WorldState,
@@ -86,17 +106,11 @@ export function consumptionSystem(
         state.stats.maxMassReached = player.mass;
       }
 
-      // 触发 eat_burst 粒子
-      // 获取实体颜色 pack 进 meta (用于渲染粒子颜色)
-      let colorR = 143, colorG = 227, colorB = 176;
-      if (entity.type === EntityType.Prey) {
-        colorR = 111; colorG = 183; colorB = 224;
-      } else if (entity.type === EntityType.Competitor) {
-        colorR = 180; colorG = 140; colorB = 224;
-      } else if (entity.type === EntityType.Predator) {
-        colorR = 224; colorG = 92; colorB = 92;
-      }
+      // 获取被吞噬实体的品种定义并提取颜色
+      const species = getSpecies(entity.type, entity.speciesIndex ?? 0);
+      const { r: colorR, g: colorG, b: colorB } = parseColorToRgb(species.bodyColor);
 
+      // 触发 eat_burst 粒子
       emitParticle({
         kind: 'eat_burst',
         position: { ...entity.position },

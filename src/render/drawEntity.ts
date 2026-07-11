@@ -29,7 +29,7 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, lo
   // 计算动画参数
   const isPlayer = type === EntityType.Player;
   const player = isPlayer ? entity as Player : null;
-  const isFrenzy = isPlayer && player!.frenzyUntil !== null;
+  const isFrenzy = isPlayer && player!.frenzyUntil !== null && player!.frenzyUntil > logicalClockMs;
   const freqMul = isFrenzy ? 2.0 : 1.0;
   const speed = Math.hypot(entity.velocity.x, entity.velocity.y);
   const speedFactor = Math.min(2.0, 0.3 + speed * 0.8); // 速度影响摆尾
@@ -66,13 +66,16 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, lo
   // ── 绘制背鳍 (中层) ──
   drawDorsalFin(ctx, species, bodyLen, bodyHeight, radius, logicalClockMs);
 
+  // 一次性生成身体路径，减少重复的 Path2D 创建开销 (Improvement 2)
+  const bodyPath = createBodyPath(bodyLen, bodyHeight, bodyWave);
+
   // ── 绘制鱼身主体 ──
-  drawBody(ctx, species, bodyLen, bodyHeight, radius, bodyWave, type, player);
+  drawBody(ctx, species, bodyLen, bodyHeight, type, player, bodyPath);
 
   ctx.shadowBlur = 0;
 
   // ── 绘制花纹 (在身体 clip 内) ──
-  drawPattern(ctx, species, bodyLen, bodyHeight, radius, bodyWave);
+  drawPattern(ctx, species, bodyLen, bodyHeight, radius, bodyPath);
 
   // ── 绘制胸鳍 (上层) ──
   drawPectoralFins(ctx, species, bodyLen, bodyHeight, radius, logicalClockMs, speedFactor);
@@ -90,7 +93,7 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, lo
 
   // ── Player 专属效果 ──
   if (isPlayer) {
-    drawPlayerEffects(ctx, player!, species, bodyLen, bodyHeight, radius, logicalClockMs);
+    drawPlayerEffects(ctx, player!, species, bodyLen, bodyHeight, radius, logicalClockMs, bodyPath);
   }
 
   ctx.restore();
@@ -104,12 +107,11 @@ function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, species
   const pulse = 0.7 + 0.3 * Math.sin(clockMs * 0.004 * species.swimFrequency);
   const drift = Math.sin(clockMs * 0.003) * r * 0.3;
 
-  ctx.shadowBlur = r * 2.5;
-  ctx.shadowColor = species.glowColor;
-
+  // 移除昂贵的 shadowBlur (Optimization 2)，完全用更大的渐变表现发光，大幅度提升性能
   if (species.bodyShape === 'jellyfish') {
     // 水母: 半透明伞状体 + 飘动触手
     const umbrellaPhase = Math.sin(clockMs * 0.005) * 0.25;
+    
     // 伞体
     ctx.fillStyle = species.bodyColor;
     ctx.beginPath();
@@ -133,13 +135,14 @@ function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, species
       ctx.stroke();
     }
 
-    // 中心发光点
-    const coreGrad = ctx.createRadialGradient(0, -r * 0.15, 0, 0, -r * 0.15, r * 0.4);
+    // 中心发光点 (加大渐变半径模拟 glow 效果)
+    const coreGrad = ctx.createRadialGradient(0, -r * 0.15, 0, 0, -r * 0.15, r * 0.8);
     coreGrad.addColorStop(0, species.patternColor);
+    coreGrad.addColorStop(0.3, species.bodyColor);
     coreGrad.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = coreGrad;
     ctx.beginPath();
-    ctx.arc(0, -r * 0.15, r * 0.4 * pulse, 0, Math.PI * 2);
+    ctx.arc(0, -r * 0.15, r * 0.8 * pulse, 0, Math.PI * 2);
     ctx.fill();
 
   } else if (species.bodyShape === 'shrimp') {
@@ -176,14 +179,15 @@ function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, species
     ctx.arc(r * 0.58, -r * 0.15, r * 0.04, 0, Math.PI * 2);
     ctx.fill();
 
-    // 发光腹部
-    const shrimpGlow = ctx.createRadialGradient(0, r * 0.05, 0, 0, r * 0.05, r * 0.5);
+    // 发光腹部 (加大渐变模拟 glow)
+    const shrimpGlow = ctx.createRadialGradient(0, r * 0.05, 0, 0, r * 0.05, r * 0.9);
     shrimpGlow.addColorStop(0, species.patternColor);
+    shrimpGlow.addColorStop(0.3, 'rgba(255, 180, 100, 0.4)');
     shrimpGlow.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = shrimpGlow;
-    ctx.globalAlpha = 0.4 * pulse;
+    ctx.globalAlpha = 0.5 * pulse;
     ctx.beginPath();
-    ctx.arc(0, r * 0.05, r * 0.5, 0, Math.PI * 2);
+    ctx.arc(0, r * 0.05, r * 0.9, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1.0;
 
@@ -203,18 +207,16 @@ function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, species
     ctx.closePath();
     ctx.fill();
 
-    // 中心核心发光
-    const algaeGlow = ctx.createRadialGradient(0, 0, 0, 0, 0, r * pulse);
+    // 中心核心发光 (加大渐变模拟 glow)
+    const algaeGlow = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 1.5 * pulse);
     algaeGlow.addColorStop(0, species.patternColor);
     algaeGlow.addColorStop(0.4, species.bodyColor);
     algaeGlow.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = algaeGlow;
     ctx.beginPath();
-    ctx.arc(0, 0, r * pulse, 0, Math.PI * 2);
+    ctx.arc(0, 0, r * 1.5 * pulse, 0, Math.PI * 2);
     ctx.fill();
   }
-
-  ctx.shadowBlur = 0;
 }
 
 // ══════════════════════════════════════════════
@@ -222,12 +224,9 @@ function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, species
 // ══════════════════════════════════════════════
 function drawBody(
   ctx: CanvasRenderingContext2D, species: FishSpecies,
-  bodyLen: number, bodyHeight: number, _radius: number,
-  bodyWave: number, type: EntityType, player: Player | null
+  _bodyLen: number, bodyHeight: number, type: EntityType,
+  player: Player | null, path: Path2D
 ) {
-  // 创建鱼身路径
-  const path = createBodyPath(bodyLen, bodyHeight, bodyWave);
-
   // 主体渐变 (背部深色 -> 腹部浅色)
   const grad = ctx.createLinearGradient(0, -bodyHeight, 0, bodyHeight);
   
@@ -315,6 +314,7 @@ function drawTail(
   const tailSize = radius * species.tailSize;
   const swing = tailSwing;
 
+  ctx.save(); // 使用 save/restore 保护 globalAlpha 防止泄露 (Improvement 3)
   ctx.fillStyle = species.finColor;
   ctx.globalAlpha = species.finAlpha;
 
@@ -398,7 +398,7 @@ function drawTail(
     }
   }
 
-  ctx.globalAlpha = 1.0;
+  ctx.restore();
 }
 
 // ══════════════════════════════════════════════
@@ -415,6 +415,7 @@ function drawDorsalFin(
   const startX = bodyLen * 0.2;
   const wobble = Math.sin(clockMs * 0.008) * finH * 0.06;
 
+  ctx.save(); // 使用 save/restore 保护 globalAlpha
   ctx.fillStyle = species.finColor;
   ctx.globalAlpha = species.finAlpha * 0.85;
 
@@ -431,7 +432,7 @@ function drawDorsalFin(
   ctx.closePath();
   ctx.fill();
 
-  ctx.globalAlpha = 1.0;
+  ctx.restore();
 }
 
 // ══════════════════════════════════════════════
@@ -448,6 +449,7 @@ function drawPectoralFins(
   const finX = bodyLen * 0.15;
   const finPhase = Math.sin(clockMs * 0.01 * speedFactor) * 0.25;
 
+  ctx.save(); // 使用 save/restore 保护 globalAlpha
   ctx.fillStyle = species.finColor;
   ctx.globalAlpha = species.finAlpha * 0.7;
 
@@ -473,7 +475,7 @@ function drawPectoralFins(
   ctx.fill();
   ctx.restore();
 
-  ctx.globalAlpha = 1.0;
+  ctx.restore();
 }
 
 // ══════════════════════════════════════════════
@@ -481,12 +483,12 @@ function drawPectoralFins(
 // ══════════════════════════════════════════════
 function drawPattern(
   ctx: CanvasRenderingContext2D, species: FishSpecies,
-  bodyLen: number, bodyHeight: number, radius: number, bodyWave: number
+  bodyLen: number, bodyHeight: number, radius: number,
+  clipPath: Path2D
 ) {
   if (species.pattern === 'none' || species.pattern === 'bioluminescent') return;
 
-  // 使用 clip 确保花纹不溢出身体
-  const clipPath = createBodyPath(bodyLen, bodyHeight, bodyWave);
+  // 使用传入的 clipPath，减少 Path2D 创建 (Improvement 2)
   ctx.save();
   ctx.clip(clipPath);
 
@@ -514,12 +516,14 @@ function drawPattern(
     ctx.fillStyle = species.patternColor;
     ctx.globalAlpha = 0.45;
     const count = species.patternCount;
-    // 使用固定种子伪随机生成斑点位置
+    // 改进 1: 斑点生成归一化，位置相对鱼身恒定，不再因鱼变大而产生模数跳跃
     for (let i = 0; i < count; i++) {
       const seed = i * 137.5;
-      const sx = bodyLen * 0.3 - (seed % (bodyLen * 0.6));
-      const sy = bodyHeight * 0.5 * Math.sin(seed * 0.73);
-      const spotR = radius * (0.06 + (seed * 0.17) % 0.06);
+      const fractX = -0.3 + 0.6 * ((seed % 100) / 100);
+      const sx = bodyLen * fractX;
+      const fractY = -0.4 + 0.8 * (((seed * 7.3) % 100) / 100);
+      const sy = bodyHeight * fractY;
+      const spotR = radius * (0.06 + ((seed * 1.7) % 6) / 100);
       ctx.beginPath();
       ctx.ellipse(sx, sy, spotR * 1.2, spotR, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -537,7 +541,6 @@ function drawPattern(
     ctx.fillRect(-bodyLen * 0.5, bodyHeight * 0.1, bodyLen, bodyHeight * 0.4);
   }
 
-  ctx.globalAlpha = 1.0;
   ctx.restore();
 }
 
@@ -701,16 +704,17 @@ function drawPredatorDecor(
 // ══════════════════════════════════════════════
 function drawPlayerEffects(
   ctx: CanvasRenderingContext2D, player: Player, _species: FishSpecies,
-  bodyLen: number, bodyHeight: number, radius: number, clockMs: number
+  bodyLen: number, bodyHeight: number, radius: number, clockMs: number,
+  bodyPath: Path2D
 ) {
   const lvl = player.evolutionLevel;
 
   // Level 6+ 发光花纹
   if (lvl >= 6) {
     const pulseAlpha = 0.15 + 0.1 * Math.sin(clockMs * 0.004);
-    const clipPath = createBodyPath(bodyLen, bodyHeight, 0);
     ctx.save();
-    ctx.clip(clipPath);
+    // 使用传入的 bodyPath，花纹与鱼身S型摆动完全同步 (Improvement 2)
+    ctx.clip(bodyPath);
 
     // 流动发光线条
     ctx.strokeStyle = `rgba(255, 220, 100, ${pulseAlpha})`;
