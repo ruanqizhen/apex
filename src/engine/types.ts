@@ -36,6 +36,7 @@ export interface AIEntity extends BaseEntity {
   baseSpeed: number;
   wanderTarget: Vector2;
   targetEntityId: string | null;
+  speciesIndex: number;       // 视觉品种索引，用于确定该实体的外观变体
 }
 
 export interface MutationInstance {

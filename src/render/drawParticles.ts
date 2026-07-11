@@ -37,7 +37,7 @@ export function drawParticles(
       }
     } 
     else if (p.kind === 'eaten_prey') {
-      // 被吞下的小鱼物理缩水吸入动画
+      // 被吞下的小鱼物理缩水吸入动画 — 带挣扎效果
       const startX = p.position.x;
       const startY = p.position.y;
       const targetX = playerPos?.x ?? startX;
@@ -57,35 +57,57 @@ export function drawParticles(
       const colorB = p.meta?.colorB ?? 224;
       const facing = p.meta?.facing ?? 0;
       
+      // 挣扎效果：高频左右摆动 + 加速的尾巴摆动
+      const struggleFreq = 0.06 + t * 0.08; // 越靠近被吞越快
+      const struggleAmp = currentRadius * 0.4 * (1 - t); // 越小幅度越小
+      const struggleLateral = Math.sin(age * struggleFreq) * struggleAmp;
+      const tailStruggle = Math.sin(age * 0.08) * currentRadius * 0.6 * (1 - t * 0.5);
+      
       ctx.save();
       ctx.translate(currentX, currentY);
       ctx.rotate(facing);
+      // 应用挣扎偏移
+      ctx.translate(0, struggleLateral);
       
       const baseColor = `rgba(${colorR}, ${colorG}, ${colorB}, ${alpha})`;
       ctx.fillStyle = baseColor;
       
-      // 绘制缩微版的小尾巴
+      // 绘制缩微版的摆动小尾巴
       ctx.beginPath();
-      ctx.moveTo(-currentRadius * 0.9, 0);
-      ctx.lineTo(-currentRadius * 1.5, -currentRadius * 0.6);
-      ctx.lineTo(-currentRadius * 1.25, 0);
-      ctx.lineTo(-currentRadius * 1.5, currentRadius * 0.6);
+      ctx.moveTo(-currentRadius * 0.8, 0);
+      ctx.lineTo(-currentRadius * 1.4, -currentRadius * 0.5 + tailStruggle);
+      ctx.lineTo(-currentRadius * 1.1, tailStruggle * 0.6);
+      ctx.lineTo(-currentRadius * 1.4, currentRadius * 0.5 + tailStruggle);
       ctx.closePath();
       ctx.fill();
       
-      // 绘制缩微版的小圆身体
+      // 绘制流线型缩微鱼身 (椭圆代替圆形)
       ctx.beginPath();
-      ctx.arc(0, 0, currentRadius, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, currentRadius * 1.1, currentRadius * 0.7, 0, 0, Math.PI * 2);
       ctx.fill();
+      
+      // 鱼身高光
+      if (currentRadius > 2) {
+        const miniGrad = ctx.createRadialGradient(
+          -currentRadius * 0.2, -currentRadius * 0.15, 0,
+          0, 0, currentRadius * 0.8
+        );
+        miniGrad.addColorStop(0, `rgba(255, 255, 255, ${alpha * 0.35})`);
+        miniGrad.addColorStop(1, `rgba(255, 255, 255, 0)`);
+        ctx.fillStyle = miniGrad;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, currentRadius * 1.1, currentRadius * 0.7, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
       
       // 绘制微小的眼睛 (如果半径仍大于 3 像素)
       if (currentRadius > 3) {
         ctx.beginPath();
-        ctx.arc(currentRadius * 0.45, -currentRadius * 0.35, currentRadius * 0.16, 0, Math.PI * 2);
+        ctx.arc(currentRadius * 0.5, -currentRadius * 0.2, currentRadius * 0.14, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
         ctx.fill();
         ctx.beginPath();
-        ctx.arc(currentRadius * 0.52, -currentRadius * 0.35, currentRadius * 0.08, 0, Math.PI * 2);
+        ctx.arc(currentRadius * 0.55, -currentRadius * 0.2, currentRadius * 0.07, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
         ctx.fill();
       }

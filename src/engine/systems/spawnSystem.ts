@@ -3,6 +3,7 @@
 import { WorldState, EntityType, AIState, Vector2 } from '../types';
 import { GAME_CONFIG, getRadiusFromMass } from '../../config/gameConfig';
 import { EntityPool } from '../entityPool';
+import { SPECIES_COUNT_MAP } from '../../render/fishSpecies';
 
 let entityIdCounter = 0;
 
@@ -213,6 +214,7 @@ export function spawnSystem(
       entity.baseSpeed = baseSpeed;
       entity.wanderTarget = { x: 0, y: 0 };
       entity.targetEntityId = null;
+      entity.speciesIndex = Math.floor(Math.random() * (SPECIES_COUNT_MAP[type] || 1));
 
       // 登记进实体库与空间哈希表
       state.entities.set(id, entity);

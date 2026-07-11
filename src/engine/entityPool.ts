@@ -35,6 +35,7 @@ export class EntityPool {
       baseSpeed: 0,
       wanderTarget: { x: 0, y: 0 },
       targetEntityId: null,
+      speciesIndex: 0,
     };
   }
 
