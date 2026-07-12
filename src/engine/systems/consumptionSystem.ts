@@ -59,13 +59,23 @@ export function consumptionSystem(
     const reach = player.radius + entity.radius * eatEngulfMultiplier;
 
     if (dist < reach) {
-      // 判定是否可被玩家吞下 (比玩家小，或者类型是 plankton / prey / item)
-      if (entity.radius <= player.radius || entity.type === EntityType.Plankton || entity.type === EntityType.Prey || entity.type === EntityType.Item) {
-        eatableCandidates.push(entity);
-      } 
-      // 判定是否对玩家致命 (Predator 且玩家半径小于其 77%)
-      else if (entity.type === EntityType.Predator && player.radius < entity.radius * GAME_CONFIG.PREDATOR_LETHAL_THRESHOLD) {
-        lethalPredators.push(entity);
+      if (player.evolutionLevel <= 1) {
+        // 孢子小蝌蚪阶段：只有单细胞生物 (Plankton) 和道具 (Item) 才是食物，其他小鱼 (Prey, Competitor, Predator) 全是致命敌人！
+        if (entity.type === EntityType.Plankton || entity.type === EntityType.Item) {
+          eatableCandidates.push(entity);
+        } else if (entity.type === EntityType.Prey || entity.type === EntityType.Competitor || entity.type === EntityType.Predator) {
+          lethalPredators.push(entity);
+        }
+      } else {
+        // 稚鱼及以上阶段（常规逻辑）：
+        // 判定是否可被玩家吞下 (比玩家小，或者类型是 plankton / prey / item)
+        if (entity.radius <= player.radius || entity.type === EntityType.Plankton || entity.type === EntityType.Prey || entity.type === EntityType.Item) {
+          eatableCandidates.push(entity);
+        } 
+        // 判定是否对玩家致命 (Predator 且玩家半径小于其 77%)
+        else if (entity.type === EntityType.Predator && player.radius < entity.radius * GAME_CONFIG.PREDATOR_LETHAL_THRESHOLD) {
+          lethalPredators.push(entity);
+        }
       }
     }
   }

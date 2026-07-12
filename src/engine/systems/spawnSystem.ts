@@ -72,12 +72,29 @@ export function spawnSystem(
     const level = player.evolutionLevel;
 
     // 动态难度梯度调整 (PRD 补充)
-    // 掠食者数量：随等级成长，从初始 1 只增加到最高 16 只，加大后期生存压力
-    const dynamicMaxPredators = Math.min(16, 1 + level * 2);
-    // 猎物小鱼数量：开局较多 (60只) 便于升级成长，后期由于掠食者变多而略微收紧
-    const dynamicMaxPrey = Math.max(25, 60 - level * 3);
-    // 同级竞争者数量：从 5 增加到最多 30，增加战场的混乱度和弹性阻碍
-    const dynamicMaxCompetitors = Math.min(30, 5 + level * 3);
+    let dynamicMaxPredators = 0;
+    let dynamicMaxPrey = 60;
+    let dynamicMaxCompetitors = 5;
+
+    if (level === 0) {
+      // 0 级小蝌蚪：天敌数量极少，无大型掠食者，降低上手难度
+      dynamicMaxPredators = 0;
+      dynamicMaxCompetitors = 2;
+      dynamicMaxPrey = 8;
+    } else if (level === 1) {
+      // 1 级小蝌蚪：天敌小幅增加，引入 1 只掠食者
+      dynamicMaxPredators = 1;
+      dynamicMaxCompetitors = 4;
+      dynamicMaxPrey = 12;
+    } else {
+      // 2 级稚鱼及以上（常规逻辑）：
+      // 掠食者数量：随等级成长，最高 16 只
+      dynamicMaxPredators = Math.min(16, 2 + (level - 2) * 2);
+      // 猎物小鱼数量：开局较多 (60只) 便于升级成长，后期由于掠食者变多而略微收紧
+      dynamicMaxPrey = Math.max(25, 60 - (level - 2) * 3);
+      // 同级竞争者数量：从 8 增加到最多 30，增加战场的混乱度和弹性阻碍
+      dynamicMaxCompetitors = Math.min(30, 8 + (level - 2) * 3);
+    }
 
     // 补充 Plankton
     if (planktonCount < GAME_CONFIG.MAX_PLANKTON) {
@@ -131,44 +148,78 @@ export function spawnSystem(
       let baseSpeed = GAME_CONFIG.BASE_SPEED;
 
       // 依据类型分配尺寸和行为基础属性 (PRD 6.2)
-      if (type === EntityType.Plankton) {
-        const ratio = GAME_CONFIG.PLANKTON_RADIUS_RATIO_MIN + Math.random() * (GAME_CONFIG.PLANKTON_RADIUS_RATIO_MAX - GAME_CONFIG.PLANKTON_RADIUS_RATIO_MIN);
-        radius = playerInitialRadius * ratio;
-        perceptionRadius = 0;
-        baseSpeed = 0.5;
-      } 
-      else if (type === EntityType.Prey) {
-        const ratio = GAME_CONFIG.PREY_RADIUS_RATIO_MIN + Math.random() * (GAME_CONFIG.PREY_RADIUS_RATIO_MAX - GAME_CONFIG.PREY_RADIUS_RATIO_MIN);
-        radius = player.radius * ratio;
-        perceptionRadius = radius * 7.5;
-        const speedGrowthFactor = Math.pow(radius / playerInitialRadius, 0.95);
-        baseSpeed = GAME_CONFIG.BASE_SPEED * (0.8 + Math.random() * 0.3) * speedGrowthFactor;
-      } 
-      else if (type === EntityType.Competitor) {
-        const ratio = GAME_CONFIG.COMPETITOR_RADIUS_RATIO_MIN + Math.random() * (GAME_CONFIG.COMPETITOR_RADIUS_RATIO_MAX - GAME_CONFIG.COMPETITOR_RADIUS_RATIO_MIN);
-        radius = player.radius * ratio;
-        perceptionRadius = radius * 5.0;
-        const speedGrowthFactor = Math.pow(radius / playerInitialRadius, 0.95);
-        baseSpeed = GAME_CONFIG.BASE_SPEED * (0.95 + Math.random() * 0.2) * speedGrowthFactor;
-      } 
-      else if (type === EntityType.Predator) {
-        const ratio = GAME_CONFIG.PREDATOR_RADIUS_RATIO_MIN + Math.random() * (GAME_CONFIG.PREDATOR_RADIUS_RATIO_MAX - GAME_CONFIG.PREDATOR_RADIUS_RATIO_MIN);
-        radius = player.radius * ratio;
-        
-        // 掠食者感知半径随玩家等级成长：初始为 radius * 6.0，每级 +0.6，最高 12.0
-        const perceptionScale = Math.min(12.0, 6.0 + player.evolutionLevel * 0.6);
-        perceptionRadius = radius * perceptionScale;
-        
-        // 掠食者基础游速随玩家等级成长：初始为 0.5 倍，每级 +0.05，最高 1.15 倍
-        const speedScale = Math.min(1.15, 0.5 + player.evolutionLevel * 0.05);
-        
-        const speedGrowthFactor = Math.pow(radius / playerInitialRadius, 0.95);
-        baseSpeed = GAME_CONFIG.BASE_SPEED * (speedScale + Math.random() * 0.15) * speedGrowthFactor;
-      }
-      else if (type === EntityType.Item) {
-        radius = 14;
-        perceptionRadius = 0;
-        baseSpeed = 0.08; // 道具在海中极为缓慢地漂移
+      if (player.evolutionLevel <= 1) {
+        // 孢子小蝌蚪阶段尺寸适配：
+        if (type === EntityType.Plankton) {
+          // 食物（各种单细胞生物）小于小蝌蚪，但不要太小 (约玩家初始半径的 45%~70%)
+          const ratio = 0.45 + Math.random() * 0.25;
+          radius = playerInitialRadius * ratio;
+          perceptionRadius = 0;
+          baseSpeed = 0.5;
+        } 
+        else if (type === EntityType.Prey) {
+          // 天敌小鱼尺寸应该大于玩家的小蝌蚪 (约玩家初始半径的 1.3~1.8 倍)
+          const ratio = 1.3 + Math.random() * 0.5;
+          radius = playerInitialRadius * ratio;
+          perceptionRadius = radius * 7.5;
+          baseSpeed = GAME_CONFIG.BASE_SPEED * (0.8 + Math.random() * 0.3) * 0.6; // 小蝌蚪阶段天敌速度放缓
+        } 
+        else if (type === EntityType.Competitor) {
+          // 中型天敌鱼类尺寸 (约玩家初始半径的 1.9~2.5 倍)
+          const ratio = 1.9 + Math.random() * 0.6;
+          radius = playerInitialRadius * ratio;
+          perceptionRadius = radius * 5.0;
+          baseSpeed = GAME_CONFIG.BASE_SPEED * (0.95 + Math.random() * 0.2) * 0.7;
+        } 
+        else if (type === EntityType.Predator) {
+          // 大型天敌掠食者尺寸 (约玩家初始半径的 2.8~5.5 倍)
+          const ratio = 2.8 + Math.random() * 2.7;
+          radius = playerInitialRadius * ratio;
+          perceptionRadius = radius * 6.0;
+          baseSpeed = GAME_CONFIG.BASE_SPEED * (0.5 + Math.random() * 0.15) * 0.75;
+        }
+        else if (type === EntityType.Item) {
+          radius = 14;
+          perceptionRadius = 0;
+          baseSpeed = 0.08;
+        }
+      } else {
+        // 稚鱼及以上阶段（常规尺寸逻辑）：
+        if (type === EntityType.Plankton) {
+          // 浮游生物随玩家成长而按比例变大，防止在相机缩放后缩为单像素点
+          const ratio = 0.08 + Math.random() * 0.07;
+          radius = player.radius * ratio;
+          perceptionRadius = 0;
+          baseSpeed = 0.5;
+        } 
+        else if (type === EntityType.Prey) {
+          const ratio = GAME_CONFIG.PREY_RADIUS_RATIO_MIN + Math.random() * (GAME_CONFIG.PREY_RADIUS_RATIO_MAX - GAME_CONFIG.PREY_RADIUS_RATIO_MIN);
+          radius = player.radius * ratio;
+          perceptionRadius = radius * 7.5;
+          const speedGrowthFactor = Math.pow(radius / playerInitialRadius, 0.95);
+          baseSpeed = GAME_CONFIG.BASE_SPEED * (0.8 + Math.random() * 0.3) * speedGrowthFactor;
+        } 
+        else if (type === EntityType.Competitor) {
+          const ratio = GAME_CONFIG.COMPETITOR_RADIUS_RATIO_MIN + Math.random() * (GAME_CONFIG.COMPETITOR_RADIUS_RATIO_MAX - GAME_CONFIG.COMPETITOR_RADIUS_RATIO_MIN);
+          radius = player.radius * ratio;
+          perceptionRadius = radius * 5.0;
+          const speedGrowthFactor = Math.pow(radius / playerInitialRadius, 0.95);
+          baseSpeed = GAME_CONFIG.BASE_SPEED * (0.95 + Math.random() * 0.2) * speedGrowthFactor;
+        } 
+        else if (type === EntityType.Predator) {
+          const ratio = GAME_CONFIG.PREDATOR_RADIUS_RATIO_MIN + Math.random() * (GAME_CONFIG.PREDATOR_RADIUS_RATIO_MAX - GAME_CONFIG.PREDATOR_RADIUS_RATIO_MIN);
+          radius = player.radius * ratio;
+          const perceptionScale = Math.min(12.0, 6.0 + player.evolutionLevel * 0.6);
+          perceptionRadius = radius * perceptionScale;
+          const speedScale = Math.min(1.15, 0.5 + player.evolutionLevel * 0.05);
+          const speedGrowthFactor = Math.pow(radius / playerInitialRadius, 0.95);
+          baseSpeed = GAME_CONFIG.BASE_SPEED * (speedScale + Math.random() * 0.15) * speedGrowthFactor;
+        }
+        else if (type === EntityType.Item) {
+          radius = 14;
+          perceptionRadius = 0;
+          baseSpeed = 0.08;
+        }
       }
 
       // 重叠检查逻辑 (最多重试 5 次，PRD 13)

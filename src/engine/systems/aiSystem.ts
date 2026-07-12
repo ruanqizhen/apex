@@ -96,12 +96,18 @@ export function aiSystem(state: WorldState, dt: number) {
     // 3. AI 状态机状态转移 (PRD 6.3)
     if (isPlayerAlive) {
       if (entity.type === EntityType.Prey) {
-        if (entity.aiState !== AIState.Flee && distToPlayer < actualPerception) {
-          entity.aiState = AIState.Flee;
-          entity.targetEntityId = player.id;
-        } else if (entity.aiState === AIState.Flee && distToPlayer > 1.5 * actualPerception) {
+        if (player.evolutionLevel <= 1) {
+          // 孢子小蝌蚪阶段：小鱼是致命的，但不主动追击也不逃跑，保持 Wander 巡游
           entity.aiState = AIState.Wander;
           entity.targetEntityId = null;
+        } else {
+          if (entity.aiState !== AIState.Flee && distToPlayer < actualPerception) {
+            entity.aiState = AIState.Flee;
+            entity.targetEntityId = player.id;
+          } else if (entity.aiState === AIState.Flee && distToPlayer > 1.5 * actualPerception) {
+            entity.aiState = AIState.Wander;
+            entity.targetEntityId = null;
+          }
         }
       } 
       else if (entity.type === EntityType.Competitor) {
@@ -110,28 +116,34 @@ export function aiSystem(state: WorldState, dt: number) {
         entity.targetEntityId = null;
       } 
       else if (entity.type === EntityType.Predator) {
-        const attackRange = entity.radius + player.radius * 1.5; // 设攻击距离为接近身体
-        
-        if (entity.aiState === AIState.Idle || entity.aiState === AIState.Wander) {
-          if (distToPlayer < actualPerception) {
-            entity.aiState = AIState.Pursue;
-            entity.targetEntityId = player.id;
-          }
-        } 
-        else if (entity.aiState === AIState.Pursue) {
-          if (distToPlayer < attackRange) {
-            entity.aiState = AIState.Attack;
-          } else if (distToPlayer > 2.0 * actualPerception) {
-            entity.aiState = AIState.Wander;
-            entity.targetEntityId = null;
-          }
-        } 
-        else if (entity.aiState === AIState.Attack) {
-          if (distToPlayer >= attackRange && distToPlayer < 2.0 * actualPerception) {
-            entity.aiState = AIState.Pursue;
-          } else if (distToPlayer >= 2.0 * actualPerception) {
-            entity.aiState = AIState.Wander;
-            entity.targetEntityId = null;
+        if (player.evolutionLevel <= 1) {
+          // 孢子小蝌蚪阶段：巨型掠食者无法察觉微观的孢子，不主动追击，保持 Wander
+          entity.aiState = AIState.Wander;
+          entity.targetEntityId = null;
+        } else {
+          const attackRange = entity.radius + player.radius * 1.5; // 设攻击距离为接近身体
+          
+          if (entity.aiState === AIState.Idle || entity.aiState === AIState.Wander) {
+            if (distToPlayer < actualPerception) {
+              entity.aiState = AIState.Pursue;
+              entity.targetEntityId = player.id;
+            }
+          } 
+          else if (entity.aiState === AIState.Pursue) {
+            if (distToPlayer < attackRange) {
+              entity.aiState = AIState.Attack;
+            } else if (distToPlayer > 2.0 * actualPerception) {
+              entity.aiState = AIState.Wander;
+              entity.targetEntityId = null;
+            }
+          } 
+          else if (entity.aiState === AIState.Attack) {
+            if (distToPlayer >= attackRange && distToPlayer < 2.0 * actualPerception) {
+              entity.aiState = AIState.Pursue;
+            } else if (distToPlayer >= 2.0 * actualPerception) {
+              entity.aiState = AIState.Wander;
+              entity.targetEntityId = null;
+            }
           }
         }
       }
