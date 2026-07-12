@@ -161,23 +161,23 @@ export function spawnSystem(
           baseSpeed = 0.5;
         } 
         else if (type === EntityType.Prey) {
-          // 天敌小鱼尺寸应该大于玩家的小蝌蚪 (约玩家初始半径的 1.3~1.8 倍)
-          const ratio = 1.3 + Math.random() * 0.5;
-          radius = playerInitialRadius * ratio;
+          // 天敌小鱼尺寸应该大于玩家的小蝌蚪 (约玩家当前实际半径的 1.35~1.85 倍，确保成长后小鱼依然大于主角)
+          const ratio = 1.35 + Math.random() * 0.5;
+          radius = player.radius * ratio;
           perceptionRadius = radius * 7.5;
           baseSpeed = GAME_CONFIG.BASE_SPEED * (0.8 + Math.random() * 0.3) * 0.6; // 小蝌蚪阶段天敌速度放缓
         } 
         else if (type === EntityType.Competitor) {
-          // 中型天敌鱼类尺寸 (约玩家初始半径的 1.9~2.5 倍)
+          // 中型天敌鱼类尺寸 (约玩家当前实际半径的 1.9~2.5 倍)
           const ratio = 1.9 + Math.random() * 0.6;
-          radius = playerInitialRadius * ratio;
+          radius = player.radius * ratio;
           perceptionRadius = radius * 5.0;
           baseSpeed = GAME_CONFIG.BASE_SPEED * (0.95 + Math.random() * 0.2) * 0.7;
         } 
         else if (type === EntityType.Predator) {
-          // 大型天敌掠食者尺寸 (约玩家初始半径的 2.8~5.5 倍)
+          // 大型天敌掠食者尺寸 (约玩家当前实际半径的 2.8~5.5 倍)
           const ratio = 2.8 + Math.random() * 2.7;
-          radius = playerInitialRadius * ratio;
+          radius = player.radius * ratio;
           perceptionRadius = radius * 6.0;
           baseSpeed = GAME_CONFIG.BASE_SPEED * (0.5 + Math.random() * 0.15) * 0.75;
         }

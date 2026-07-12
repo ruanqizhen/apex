@@ -17,16 +17,32 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
 
   let drawFacing = entity.facing;
   const isPlayer = type === EntityType.Player;
-  if (isPlayer && state.status === 'upgrade_animation') {
+  const isUpgradeAnim = isPlayer && state.status === 'upgrade_animation';
+  if (isUpgradeAnim) {
     const timer = state.upgradeAnimationTimer ?? 0;
     const msLeft = Math.max(0, timer - logicalClockMs);
     const progress = 1.0 - msLeft / 2500; // 0 to 1
     drawFacing += progress * Math.PI * 4; // 缓慢自转 720 度 (自转秀 - Task 3)
   }
 
+  // 始终保持后背（Dorsal）朝上，肚皮（Ventral）朝下
+  // 当朝向在第二、三象限（即向左游动）时，水平镜像翻转，并相应调整轴对称俯仰角旋转
+  let normFacing = drawFacing % (Math.PI * 2);
+  if (normFacing > Math.PI) normFacing -= Math.PI * 2;
+  if (normFacing < -Math.PI) normFacing += Math.PI * 2;
+
+  const facingLeft = !isUpgradeAnim && (Math.abs(normFacing) > Math.PI / 2);
+
   ctx.save();
   ctx.translate(entity.position.x, entity.position.y);
-  ctx.rotate(drawFacing);
+
+  if (facingLeft) {
+    ctx.scale(-1, 1); // 水平镜像翻转
+    const pitch = Math.PI - normFacing;
+    ctx.rotate(pitch);
+  } else {
+    ctx.rotate(drawFacing);
+  }
 
   // ── 1. 浮游生物用专用渲染 ──
   if (type === EntityType.Plankton) {

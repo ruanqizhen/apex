@@ -121,7 +121,10 @@ export function movementSystem(state: WorldState, dt: number, emitParticle: (p: 
     let pullX = 0;
     let pullY = 0;
     const isMagnetActive = player.magnetUntil !== null && player.magnetUntil > state.logicalClockMs;
-    if (isMagnetActive && (entity.type === EntityType.Plankton || entity.type === EntityType.Prey)) {
+    // 磁铁只吸引可以吞食的食物（小蝌蚪阶段仅吸引单细胞浮游生物；常规阶段吸引浮游生物和猎物小鱼），绝不吸引致命天敌
+    const isEatableFood = entity.type === EntityType.Plankton || 
+                         (entity.type === EntityType.Prey && player.evolutionLevel >= 2);
+    if (isMagnetActive && isEatableFood) {
       const dx = player.position.x - entity.position.x;
       const dy = player.position.y - entity.position.y;
       const dist = Math.hypot(dx, dy);
