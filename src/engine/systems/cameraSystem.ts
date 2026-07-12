@@ -12,7 +12,11 @@ export function cameraSystem(state: WorldState, canvasWidth: number) {
   const desiredPixelDiameter = canvasWidth * 0.05;
   
   // camera.targetScale = desiredPixelDiameter / (2 * player.radius)
-  camera.targetScale = desiredPixelDiameter / (2 * player.radius);
+  let targetScale = desiredPixelDiameter / (2 * player.radius);
+  if (state.status === 'upgrade_animation') {
+    targetScale *= 2.2; // 升级过场大突破聚焦特写放大 2.2 倍 (Task 4)
+  }
+  camera.targetScale = targetScale;
 
   // camera.scale = lerp(camera.scale, camera.targetScale, 0.08)
   camera.scale += (camera.targetScale - camera.scale) * 0.08;

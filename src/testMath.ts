@@ -73,6 +73,9 @@ const createMockState = (): WorldState => {
     particles: [],
     camera: { position: { x: 0, y: 0 }, scale: 1, targetScale: 1 },
     pendingEvolutionChoices: null,
+    upgradeAnimationTimer: null,
+    upgradeAnimationType: null,
+    upgradeOriginalLevel: 0,
     stats: { totalEaten: 0, maxMassReached: 100, survivalMs: 0 }
   };
 };

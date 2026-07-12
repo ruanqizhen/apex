@@ -64,10 +64,12 @@ export function movementSystem(state: WorldState, dt: number, emitParticle: (p: 
     };
     player.facing = Math.atan2(finalDir.y, finalDir.x);
 
-    // 2. 处理冲刺质量消耗与下限保护
-    if (player.isDashing) {
-      // 狂热模式下冲刺不消耗质量
-      if (!isFrenzy) {
+    // 2. 处理冲刺质量消耗与下限保护以及尾迹排放
+    const isPlayerLvl8Plus = player.evolutionLevel >= 8;
+    const shouldEmitTrail = player.isDashing || isPlayerLvl8Plus;
+
+    if (shouldEmitTrail) {
+      if (player.isDashing && !isFrenzy) {
         // 涡轮增压突变层数 (冲刺质量消耗速率 -30%，乘算)
         const dashRegenStacks = player.mutations.find(m => m.id === 'mut_dash_regen')?.stacks || 0;
         const decayMultiplier = Math.pow(0.7, dashRegenStacks);
@@ -83,16 +85,17 @@ export function movementSystem(state: WorldState, dt: number, emitParticle: (p: 
         }
       }
 
-      // 每隔几帧产生一个水泡尾迹 (bubble_trail，Frenzy 期间密度倍增)
-      if (Math.random() < (isFrenzy ? 0.85 : 0.4)) {
-        // 在玩家屁股后面产生水泡
+      // 每隔几帧产生一个水泡尾迹 (Lvl8+ 期间默认产生黄金尾迹)
+      const emitChance = isFrenzy || isPlayerLvl8Plus ? 0.8 : 0.4;
+      if (Math.random() < emitChance) {
         const angle = player.facing + Math.PI + (Math.random() - 0.5) * 0.5; // 反朝向 + 稍微抖动
         const dist = player.radius * 0.9;
         const bubblePos: Vector2 = {
           x: player.position.x + Math.cos(angle) * dist,
           y: player.position.y + Math.sin(angle) * dist
         };
-        // 泡泡的运动方向为玩家反方向 + 缓慢漂移
+        
+        const isGold = isPlayerLvl8Plus ? 1 : 0;
         emitParticle({
           kind: 'bubble_trail',
           position: bubblePos,
@@ -100,7 +103,8 @@ export function movementSystem(state: WorldState, dt: number, emitParticle: (p: 
           meta: {
             vx: -Math.cos(player.facing) * 0.6,
             vy: -Math.sin(player.facing) * 0.6,
-            size: Math.random() * 4 + 1.5
+            size: Math.random() * (isGold ? 5.0 : 4.0) + 1.5,
+            isGold
           }
         });
       }

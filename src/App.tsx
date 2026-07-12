@@ -8,6 +8,7 @@ import { GameLoop } from './engine/loop';
 import StartScreen from './ui/StartScreen';
 import GameOverScreen from './ui/GameOverScreen';
 import EvolutionCardModal from './ui/EvolutionCardModal';
+import UpgradeCinematic from './ui/UpgradeCinematic';
 import HUD from './ui/HUD';
 
 export default function App() {
@@ -78,6 +79,9 @@ export default function App() {
         } else if (e.code === 'KeyQ') {
           // Q 键释放主动技能 (Task 11)
           actions.triggerActiveSkill?.();
+        } else if (e.code === 'KeyL') {
+          // CHEAT: 按 L 键直接增重作弊，触发下一等级突破基因卡牌选择
+          actions.cheatGainMass?.();
         }
       }
     };
@@ -179,11 +183,18 @@ export default function App() {
           <EvolutionCardModal />
         </>
       )}
+
+      {status === 'upgrade_animation' && (
+        <>
+          <HUD />
+          <UpgradeCinematic />
+        </>
+      )}
       
       {status === 'game_over' && <GameOverScreen />}
 
-      {/* 固定的操作提示条（仅在游玩中或升级暂停时悬浮显示在左下角） */}
-      {(status === 'playing' || status === 'paused_evolution') && (
+      {/* 固定的操作提示条（仅在游玩中或升级暂停/过场时悬浮显示在左下角） */}
+      {(status === 'playing' || status === 'paused_evolution' || status === 'upgrade_animation') && (
         <div style={{
           position: 'absolute',
           bottom: 20,

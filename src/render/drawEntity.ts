@@ -1,5 +1,5 @@
 // src/render/drawEntity.ts
-// 逼真鱼类渲染系统 — 贝塞尔曲线鱼身、品种花纹、鳍部细节、S型游泳动画
+// 逼真鱼类与渐进式多阶进化视觉渲染系统
 
 import { BaseEntity, EntityType, Player, AIEntity, ItemType, WorldState } from '../engine/types';
 import { getSpecies, FishSpecies } from './fishSpecies';
@@ -15,67 +15,165 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
   const speciesIndex = type === EntityType.Player ? 0 : (entity as AIEntity).speciesIndex ?? 0;
   const species = getSpecies(type, speciesIndex);
 
+  let drawFacing = entity.facing;
+  const isPlayer = type === EntityType.Player;
+  if (isPlayer && state.status === 'upgrade_animation') {
+    const timer = state.upgradeAnimationTimer ?? 0;
+    const msLeft = Math.max(0, timer - logicalClockMs);
+    const progress = 1.0 - msLeft / 2500; // 0 to 1
+    drawFacing += progress * Math.PI * 4; // 缓慢自转 720 度 (自转秀 - Task 3)
+  }
+
   ctx.save();
   ctx.translate(entity.position.x, entity.position.y);
-  ctx.rotate(entity.facing);
+  ctx.rotate(drawFacing);
 
-  // ── 浮游生物用专用渲染 ──
+  // ── 1. 浮游生物用专用渲染 ──
   if (type === EntityType.Plankton) {
     drawPlankton(ctx, entity, species, logicalClockMs);
     ctx.restore();
     return;
   }
 
-  // ── 道具专用渲染 ──
+  // ── 2. 道具专用渲染 ──
   if (type === EntityType.Item) {
     drawItem(ctx, entity as AIEntity, logicalClockMs);
     ctx.restore();
     return;
   }
 
-  // ── 变色巨乌贼隐形效果 (Task 8) ──
+  // 计算冰冻/眩晕/变色龙状态
+  const player = isPlayer ? entity as Player : null;
+  const lvl = isPlayer ? player!.evolutionLevel : 6; // AI 默认按成年鱼渲染
+
+  // ── 变色巨乌贼隐形效果 ──
   let targetAlpha = 1.0;
   if (type === EntityType.Predator && speciesIndex === 3) {
-    const player = state.player;
-    if (player.isAlive) {
-      const dist = Math.hypot(entity.position.x - player.position.x, entity.position.y - player.position.y);
-      // 距离大于 250px 时近乎隐形，只剩微弱荧光眼；小于 150px 时完全显现
+    const pObj = state.player;
+    if (pObj.isAlive) {
+      const dist = Math.hypot(entity.position.x - pObj.position.x, entity.position.y - pObj.position.y);
       if (dist > 250) {
-        targetAlpha = 0.06;
+        targetAlpha = 0.05; // 几乎隐形
       } else if (dist < 150) {
         targetAlpha = 1.0;
       } else {
-        targetAlpha = 0.06 + 0.94 * (1 - (dist - 150) / 100);
+        targetAlpha = 0.05 + 0.95 * (1 - (dist - 150) / 100);
       }
     }
-    // 追击/攻击状态下强行提高可见度
     if ((entity as AIEntity).aiState === 'pursue' || (entity as AIEntity).aiState === 'attack') {
       targetAlpha = Math.max(targetAlpha, 0.7);
     }
     ctx.globalAlpha = targetAlpha;
   }
 
-  // 计算冰冻/眩晕状态
+  // ── Player Lvl 0-1 孢子小蝌蚪特殊绘制 ──
+  if (isPlayer && lvl <= 1) {
+    // 黄金小蝌蚪发光
+    ctx.shadowBlur = radius * 0.65;
+    ctx.shadowColor = 'rgba(245, 158, 11, 0.7)';
+
+    // 1. 绘制摆动的黄色尾巴
+    const phase = logicalClockMs * 0.016;
+    const swing1 = Math.sin(phase) * radius * 0.45;
+    const swing2 = Math.sin(phase - 1.2) * radius * 0.78;
+    
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    // 叠加 4 段折线使得小尾巴自然渐细
+    const tailPoints = [
+      { x: -radius * 0.2, y: 0, w: radius * 0.45 },
+      { x: -radius * 0.9, y: swing1 * 0.4, w: radius * 0.32 },
+      { x: -radius * 1.7, y: swing1, w: radius * 0.2 },
+      { x: -radius * 2.5, y: swing2, w: radius * 0.08 }
+    ];
+
+    for (let i = 0; i < tailPoints.length - 1; i++) {
+      const p1 = tailPoints[i];
+      const p2 = tailPoints[i+1];
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = p1.w;
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.quadraticCurveTo((p1.x + p2.x)/2, (p1.y + p2.y)/2, p2.x, p2.y);
+      ctx.stroke();
+    }
+
+    // 2. 绘制黄色圆球头部
+    const headRadius = radius * 0.78;
+    const headGrad = ctx.createRadialGradient(-headRadius * 0.2, -headRadius * 0.2, 0, 0, 0, headRadius);
+    headGrad.addColorStop(0, '#fffbeb'); // 暖白高光
+    headGrad.addColorStop(0.35, '#fbbf24'); // 橙黄
+    headGrad.addColorStop(1, '#b45309'); // 琥珀暗色
+
+    ctx.fillStyle = headGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, headRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 头部新月形亮光
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(-headRadius * 0.3, -headRadius * 0.3, headRadius * 0.3, Math.PI, Math.PI * 1.5);
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+
+    // 3. 绘制萌萌的大眼睛
+    const eyeX = headRadius * 0.36;
+    const eyeY = -headRadius * 0.36;
+    const eyeR = headRadius * 0.22;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#0f0f18';
+    ctx.beginPath();
+    ctx.arc(eyeX + eyeR * 0.15, eyeY, eyeR * 0.65, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(eyeX + eyeR * 0.3, eyeY - eyeR * 0.2, eyeR * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore(); // 仅此一个 restore() 即可完美平衡外层的 save()
+    return;
+  }
+
+  // 判定冰冻状态
   const aiEntity = entity as AIEntity;
-  const isFrozen = type !== EntityType.Player && aiEntity.frozenUntil !== null && aiEntity.frozenUntil! > logicalClockMs;
+  const isAiFrozen = type !== EntityType.Player && aiEntity.frozenUntil !== null && aiEntity.frozenUntil! > logicalClockMs;
+  
+  // 玩家冰冻状态判定：全局有冰冻 AI 激活时，玩家展现冰晶形态 (Task 4)
+  let isPlayerFrozen = false;
+  if (isPlayer) {
+    for (const ent of state.entities.values()) {
+      if (ent.frozenUntil && ent.frozenUntil > logicalClockMs) {
+        isPlayerFrozen = true;
+        break;
+      }
+    }
+  }
+  const isEntityFrozen = isAiFrozen || isPlayerFrozen;
   const isStunned = type !== EntityType.Player && aiEntity.chargePhase === 'stunned';
 
   // 计算动画参数
-  const isPlayer = type === EntityType.Player;
-  const player = isPlayer ? entity as Player : null;
   const isFrenzy = isPlayer && player!.frenzyUntil !== null && player!.frenzyUntil > logicalClockMs;
   const freqMul = isFrenzy ? 2.0 : 1.0;
   const speed = Math.hypot(entity.velocity.x, entity.velocity.y);
-  const speedFactor = Math.min(2.0, 0.3 + speed * 0.8); // 速度影响摆尾
+  const speedFactor = Math.min(2.0, 0.3 + speed * 0.8);
 
-  // 时间驱动的基础摆动相位 (若被冰冻或眩晕，摆尾幅度强行归 0，呈现僵直 - Task 8)
   const phase = logicalClockMs * 0.012 * species.swimFrequency * freqMul;
-  const tailSwing = (isFrozen || isStunned) ? 0 : Math.sin(phase) * radius * 0.35 * species.swimAmplitude * speedFactor;
-  const bodyWave = (isFrozen || isStunned) ? 0 : Math.sin(phase + 0.5) * radius * species.bodyWaveAmplitude * speedFactor;
+  const tailSwing = (isEntityFrozen || isStunned) ? 0 : Math.sin(phase) * radius * 0.35 * species.swimAmplitude * speedFactor;
+  const bodyWave = (isEntityFrozen || isStunned) ? 0 : Math.sin(phase + 0.5) * radius * species.bodyWaveAmplitude * speedFactor;
 
   // 吞食张嘴和膨胀动画
   let gulpScale = 1.0;
-  let mouthOpen = 0; // 0-1
+  let mouthOpen = 0;
   if (isPlayer) {
     const msSinceEat = logicalClockMs - player!.comboLastEatAt;
     if (msSinceEat >= 0 && msSinceEat < 250) {
@@ -85,60 +183,84 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
     }
   }
 
-  // 身体长度和高度 (考虑品种纵横比)
   const aspect = species.bodyAspect;
   const bodyLen = radius * aspect * gulpScale;
   const bodyHeight = radius * (2.0 / (aspect * 0.5 + 0.5)) * 0.5 * gulpScale;
 
-  // ── 全局发光效果 ──
+  // ── 3. 全局发光效果 ──
   ctx.shadowBlur = radius * 0.35;
   ctx.shadowColor = species.glowColor;
 
-  // ── 绘制尾鳍 (底层) ──
-  drawTail(ctx, species, bodyLen, bodyHeight, radius, tailSwing, logicalClockMs);
+  // ── 4. 绘制尾鳍 ──
+  drawTail(ctx, species, bodyLen, bodyHeight, radius, tailSwing, logicalClockMs, lvl, isEntityFrozen, isStunned);
 
-  // ── 绘制背鳍 (中层) ──
-  drawDorsalFin(ctx, species, bodyLen, bodyHeight, radius, logicalClockMs);
+  // ── 5. 绘制后侧副鳍 (Lvl 8+ 独有 - Task 3) ──
+  if (isPlayer && lvl >= 8 && !isEntityFrozen) {
+    drawSecondaryFins(ctx, bodyLen, bodyHeight, radius, logicalClockMs);
+  }
 
-  // 一次性生成身体路径，判断是否为冲撞剑鱼 (Task 8)
+  // ── 6. 绘制背鳍 ──
+  drawDorsalFin(ctx, species, bodyLen, bodyHeight, radius, logicalClockMs, lvl, isEntityFrozen);
+
+  // 一次性生成身体路径，判断是否为冲撞剑鱼
   const isSpearfish = type === EntityType.Predator && speciesIndex === 4;
   const bodyPath = createBodyPath(bodyLen, bodyHeight, bodyWave, isSpearfish);
 
-  // ── 绘制鱼身主体 ──
+  // ── 7. 绘制鱼身主体 ──
   drawBody(ctx, species, bodyLen, bodyHeight, type, player, bodyPath);
 
   ctx.shadowBlur = 0;
 
-  // ── 绘制花纹 (在身体 clip 内) ──
-  drawPattern(ctx, species, bodyLen, bodyHeight, radius, bodyPath);
+  // ── 8. 绘制黄金重甲鳞片 (玩家 Shield 激活 - Task 4) ──
+  if (isPlayer && player!.shieldActive) {
+    drawShieldSpines(ctx, bodyLen, bodyHeight, radius);
+  }
 
-  // ── 绘制胸鳍 (上层) ──
-  drawPectoralFins(ctx, species, bodyLen, bodyHeight, radius, logicalClockMs, speedFactor);
+  // ── 9. 绘制鱼身鱼鳞网纹 (Lvl 8+ 独有 - Task 3) ──
+  if (isPlayer && lvl >= 8) {
+    drawScales(ctx, bodyLen, bodyHeight, radius, bodyPath);
+  }
 
-  // ── 绘制鱼嘴 (剑鱼长剑本身就是口器延长，闭嘴时只画基础轮廓)
+  // ── 10. 绘制侧线 (Lvl 6+ 独有 - Task 3) ──
+  if (lvl >= 6) {
+    drawLateralLine(ctx, bodyLen, bodyHeight, radius, bodyWave);
+  }
+
+  // ── 11. 绘制花纹 ──
+  drawPattern(ctx, species, bodyLen, bodyHeight, radius, bodyPath, lvl);
+
+  // ── 12. 绘制胸鳍 ──
+  drawPectoralFins(ctx, species, bodyLen, bodyHeight, radius, logicalClockMs, speedFactor, lvl, isEntityFrozen);
+
+  // ── 13. 绘制鱼嘴 ──
   if (!isSpearfish) {
     drawMouth(ctx, species, bodyLen, bodyHeight, radius, mouthOpen, type);
   }
 
-  // ── 绘制眼睛 ──
-  drawEye(ctx, species, bodyLen, bodyHeight, radius);
+  // ── 14. 绘制磁力感知胡须 (玩家 Magnet 激活 - Task 4) ──
+  if (isPlayer && player!.magnetUntil !== null && player!.magnetUntil > logicalClockMs) {
+    drawMagnetAntennae(ctx, bodyLen, bodyHeight, radius, logicalClockMs);
+  }
 
-  // ── Predator 专属威胁装饰 ──
+  // ── 15. 绘制眼睛 ──
+  drawEye(ctx, species, bodyLen, bodyHeight, radius, lvl);
+
+  // ── 16. Predator 专属威胁装饰 ──
   if (type === EntityType.Predator) {
     drawPredatorDecor(ctx, species, bodyLen, bodyHeight, radius, speciesIndex, logicalClockMs);
   }
 
-  // ── 冰冻结冰表面层 ──
-  if (isFrozen) {
+  // ── 17. 冰冻结冰表面层 ──
+  if (isAiFrozen) {
     drawFreezeOverlay(ctx, bodyLen, bodyHeight, radius, bodyPath);
   }
 
-  // ── 剑鱼眩晕打转小星星效果 (Task 8) ──
+  // ── 18. 眩晕星星 ──
   if (isStunned) {
     drawStunStars(ctx, bodyLen, bodyHeight, logicalClockMs);
   }
 
-  // ── Player 专属效果 (磁铁、气泡护盾) ──
+  // ── 19. Player 专属磁力/护盾/光晕 ──
   if (isPlayer) {
     drawPlayerEffects(ctx, player!, species, bodyLen, bodyHeight, radius, logicalClockMs, bodyPath);
   }
@@ -155,10 +277,8 @@ function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, species
   const drift = Math.sin(clockMs * 0.003) * r * 0.3;
 
   if (species.bodyShape === 'jellyfish') {
-    // 水母: 半透明伞状体 + 飘动触手
     const umbrellaPhase = Math.sin(clockMs * 0.005) * 0.25;
     
-    // 伞体
     ctx.fillStyle = species.bodyColor;
     ctx.beginPath();
     ctx.arc(0, -r * 0.1, r * pulse, Math.PI, 0, false);
@@ -167,7 +287,6 @@ function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, species
     ctx.quadraticCurveTo(-r * 0.8, r * 0.3 + drift, -r * pulse, -r * 0.1);
     ctx.fill();
 
-    // 触手
     ctx.strokeStyle = species.finColor;
     ctx.lineWidth = Math.max(0.3, r * 0.06);
     ctx.lineCap = 'round';
@@ -181,7 +300,6 @@ function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, species
       ctx.stroke();
     }
 
-    // 中心发光点
     const coreGrad = ctx.createRadialGradient(0, -r * 0.15, 0, 0, -r * 0.15, r * 0.8);
     coreGrad.addColorStop(0, species.patternColor);
     coreGrad.addColorStop(0.3, species.bodyColor);
@@ -192,7 +310,6 @@ function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, species
     ctx.fill();
 
   } else if (species.bodyShape === 'shrimp') {
-    // 磷虾
     const shrimpBend = Math.sin(clockMs * 0.008) * 0.15;
     ctx.fillStyle = species.bodyColor;
     ctx.beginPath();
@@ -203,7 +320,6 @@ function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, species
     ctx.quadraticCurveTo(r * 0.5, r * 0.35, r * 0.8, 0);
     ctx.fill();
 
-    // 小触须
     ctx.strokeStyle = species.finColor;
     ctx.lineWidth = Math.max(0.2, r * 0.04);
     for (let i = 0; i < 3; i++) {
@@ -214,7 +330,6 @@ function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, species
       ctx.stroke();
     }
 
-    // 小眼睛
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.arc(r * 0.55, -r * 0.15, r * 0.08, 0, Math.PI * 2);
@@ -224,7 +339,6 @@ function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, species
     ctx.arc(r * 0.58, -r * 0.15, r * 0.04, 0, Math.PI * 2);
     ctx.fill();
 
-    // 发光腹部
     const shrimpGlow = ctx.createRadialGradient(0, r * 0.05, 0, 0, r * 0.05, r * 0.9);
     shrimpGlow.addColorStop(0, species.patternColor);
     shrimpGlow.addColorStop(0.3, 'rgba(255, 180, 100, 0.4)');
@@ -237,7 +351,6 @@ function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, species
     ctx.globalAlpha = 1.0;
 
   } else {
-    // 发光藻类
     const blobPoints = 7;
     ctx.fillStyle = species.bodyColor;
     ctx.beginPath();
@@ -252,7 +365,6 @@ function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, species
     ctx.closePath();
     ctx.fill();
 
-    // 中心发光
     const algaeGlow = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 1.5 * pulse);
     algaeGlow.addColorStop(0, species.patternColor);
     algaeGlow.addColorStop(0.4, species.bodyColor);
@@ -263,6 +375,8 @@ function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, species
     ctx.fill();
   }
 }
+
+
 
 // ══════════════════════════════════════════════
 //  道具专用渲染
@@ -276,7 +390,6 @@ function drawItem(ctx: CanvasRenderingContext2D, entity: AIEntity, clockMs: numb
   ctx.save();
   ctx.rotate(rot);
 
-  // 外围辉光
   ctx.shadowBlur = r * 1.6;
   if (itemType === ItemType.Magnet) {
     ctx.shadowColor = '#f43f5e';
@@ -286,7 +399,6 @@ function drawItem(ctx: CanvasRenderingContext2D, entity: AIEntity, clockMs: numb
     ctx.shadowColor = '#fbbf24';
   }
 
-  // 绘制水晶珍珠底盘
   ctx.beginPath();
   ctx.arc(0, 0, r * pulse, 0, Math.PI * 2);
   const grad = ctx.createRadialGradient(-r * 0.2, -r * 0.2, 0, 0, 0, r * pulse);
@@ -306,14 +418,12 @@ function drawItem(ctx: CanvasRenderingContext2D, entity: AIEntity, clockMs: numb
 
   ctx.shadowBlur = 0;
 
-  // 绘制内部白色标志性线条
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 1.8;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
   if (itemType === ItemType.Magnet) {
-    // 马蹄铁磁铁标志
     ctx.beginPath();
     ctx.arc(0, r * 0.15, r * 0.35, Math.PI, 0, true);
     ctx.lineTo(r * 0.35, -r * 0.25);
@@ -321,13 +431,11 @@ function drawItem(ctx: CanvasRenderingContext2D, entity: AIEntity, clockMs: numb
     ctx.lineTo(-r * 0.35, -r * 0.25);
     ctx.stroke();
 
-    // 红蓝磁极涂色
     ctx.fillStyle = '#ef4444';
     ctx.fillRect(-r * 0.44, -r * 0.35, r * 0.18, r * 0.2);
     ctx.fillStyle = '#3b82f6';
     ctx.fillRect(r * 0.26, -r * 0.35, r * 0.18, r * 0.2);
   } else if (itemType === ItemType.Freeze) {
-    // 雪花晶体标志
     ctx.beginPath();
     ctx.moveTo(0, -r * 0.55); ctx.lineTo(0, r * 0.55);
     ctx.moveTo(-r * 0.55, 0); ctx.lineTo(r * 0.55, 0);
@@ -336,7 +444,6 @@ function drawItem(ctx: CanvasRenderingContext2D, entity: AIEntity, clockMs: numb
     ctx.moveTo(d, -d); ctx.lineTo(-d, d);
     ctx.stroke();
   } else {
-    // 保护盾气泡环标志
     ctx.beginPath();
     ctx.arc(0, 0, r * 0.45, 0, Math.PI * 2);
     ctx.stroke();
@@ -362,12 +469,10 @@ function drawFreezeOverlay(
   ctx.save();
   ctx.clip(bodyPath);
 
-  // 半透明淡蓝色结冰图层
   ctx.fillStyle = 'rgba(186, 230, 253, 0.45)';
   ctx.fill(bodyPath);
 
-  // 绘制冰裂纹纹理
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
   ctx.lineWidth = Math.max(0.6, radius * 0.04);
   ctx.beginPath();
   ctx.moveTo(-bodyLen * 0.2, -bodyHeight * 0.2);
@@ -379,7 +484,6 @@ function drawFreezeOverlay(
 
   ctx.restore();
 
-  // 外围冰霜霜气亮轮廓
   ctx.save();
   ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
   ctx.lineWidth = radius * 0.08;
@@ -390,11 +494,10 @@ function drawFreezeOverlay(
 }
 
 // ══════════════════════════════════════════════
-//  剑鱼眩晕打转小星星 (Task 8)
+//  剑鱼眩晕打转小星星
 // ══════════════════════════════════════════════
 function drawStunStars(ctx: CanvasRenderingContext2D, bodyLen: number, bodyHeight: number, clockMs: number) {
   ctx.save();
-  // 定位在头部上方
   ctx.translate(bodyLen * 0.25, -bodyHeight - 12);
   const rot = clockMs * 0.007;
   ctx.rotate(rot);
@@ -408,7 +511,6 @@ function drawStunStars(ctx: CanvasRenderingContext2D, bodyLen: number, bodyHeigh
     const sx = Math.cos(angle) * 12;
     const sy = Math.sin(angle) * 12;
     
-    // 绘制简易星形圆点
     ctx.beginPath();
     ctx.arc(sx, sy, 3, 0, Math.PI * 2);
     ctx.fill();
@@ -418,7 +520,7 @@ function drawStunStars(ctx: CanvasRenderingContext2D, bodyLen: number, bodyHeigh
 }
 
 // ══════════════════════════════════════════════
-//  鱼身主体 — 贝塞尔曲线流线型轮廓
+//  鱼身主体
 // ══════════════════════════════════════════════
 function drawBody(
   ctx: CanvasRenderingContext2D, species: FishSpecies,
@@ -445,17 +547,17 @@ function drawBody(
   ctx.fillStyle = grad;
   ctx.fill(path);
 
-  // 高光
-  const highlightGrad = ctx.createLinearGradient(0, -bodyHeight * 0.9, 0, -bodyHeight * 0.3);
+  // 3D 侧线立体阴影高光 (Task 1)
+  const highlightGrad = ctx.createLinearGradient(0, -bodyHeight * 0.95, 0, -bodyHeight * 0.25);
   highlightGrad.addColorStop(0, 'rgba(255, 255, 255, 0.0)');
-  highlightGrad.addColorStop(0.4, 'rgba(255, 255, 255, 0.18)');
+  highlightGrad.addColorStop(0.4, 'rgba(255, 255, 255, 0.2)');
   highlightGrad.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
   ctx.fillStyle = highlightGrad;
   ctx.fill(path);
 }
 
 // ══════════════════════════════════════════════
-//  鱼身路径 (Spearfish 会将口吻强力拉长 - Task 8)
+//  鱼身路径
 // ══════════════════════════════════════════════
 function createBodyPath(bodyLen: number, bodyHeight: number, bodyWave: number, isSpearfish: boolean = false): Path2D {
   const path = new Path2D();
@@ -464,7 +566,6 @@ function createBodyPath(bodyLen: number, bodyHeight: number, bodyWave: number, i
   const midX = bodyLen * 0.05;
   const wave = bodyWave;
 
-  // 上半身轮廓
   path.moveTo(noseX, 0);
   path.bezierCurveTo(
     isSpearfish ? noseX - bodyLen * 0.38 : noseX - bodyLen * 0.05, -bodyHeight * 0.6,
@@ -479,7 +580,6 @@ function createBodyPath(bodyLen: number, bodyHeight: number, bodyWave: number, i
 
   path.lineTo(tailX - bodyLen * 0.05, 0);
 
-  // 下半身轮廓
   path.lineTo(tailX, bodyHeight * 0.15);
   path.bezierCurveTo(
     tailX + bodyLen * 0.15, bodyHeight * 0.45 - wave * 0.5,
@@ -497,18 +597,37 @@ function createBodyPath(bodyLen: number, bodyHeight: number, bodyWave: number, i
 }
 
 // ══════════════════════════════════════════════
-//  尾鳍
+//  尾鳍 (支持冰晶化及鱼鳍骨刺 - Task 2/4)
 // ══════════════════════════════════════════════
 function drawTail(
   ctx: CanvasRenderingContext2D, species: FishSpecies,
   bodyLen: number, bodyHeight: number, radius: number,
-  tailSwing: number, _clockMs: number
+  tailSwing: number, _clockMs: number, lvl: number, isFrozen: boolean, isStunned: boolean
 ) {
   const tailX = -bodyLen * 0.45;
   const tailSize = radius * species.tailSize;
   const swing = tailSwing;
 
   ctx.save();
+  
+  // 冰冻冰晶鳍 (Task 4)
+  if (isFrozen) {
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.8)';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = Math.max(1, radius * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(tailX, -bodyHeight * 0.15);
+    ctx.lineTo(tailX - tailSize * 1.25, -tailSize * 0.8 + swing);
+    ctx.lineTo(tailX - tailSize * 0.45, swing);
+    ctx.lineTo(tailX - tailSize * 1.25, tailSize * 0.8 + swing);
+    ctx.lineTo(tailX, bodyHeight * 0.15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
   ctx.fillStyle = species.finColor;
   ctx.globalAlpha = species.finAlpha;
 
@@ -587,6 +706,58 @@ function drawTail(
     }
   }
 
+  // 鱼鳍放射状骨刺线条 (Lvl >= 6 - Task 2)
+  if (lvl >= 6 && !isStunned) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.lineWidth = Math.max(0.6, radius * 0.025);
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const offset = (i - 2) * 0.22;
+      ctx.moveTo(tailX, 0);
+      ctx.lineTo(tailX - tailSize * 0.85, swing + tailSize * offset * 1.8);
+    }
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// ══════════════════════════════════════════════
+//  后侧副鳍 (Lvl 8+ 独有 - Task 3)
+// ══════════════════════════════════════════════
+function drawSecondaryFins(
+  ctx: CanvasRenderingContext2D, bodyLen: number, bodyHeight: number, radius: number, clockMs: number
+) {
+  const finSize = radius * 0.26;
+  const finX = -bodyLen * 0.2;
+  const wobble = Math.sin(clockMs * 0.008) * 0.12;
+
+  ctx.save();
+  ctx.fillStyle = '#e8b030';
+  ctx.globalAlpha = 0.65;
+
+  // 上副鳍
+  ctx.save();
+  ctx.translate(finX, -bodyHeight * 0.45);
+  ctx.rotate(-0.55 + wobble);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(-finSize * 0.5, -finSize * 0.85, -finSize, -finSize * 0.4);
+  ctx.quadraticCurveTo(-finSize * 0.6, -finSize * 0.1, 0, 0);
+  ctx.fill();
+  ctx.restore();
+
+  // 下副鳍
+  ctx.save();
+  ctx.translate(finX, bodyHeight * 0.45);
+  ctx.rotate(0.55 - wobble);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(-finSize * 0.5, finSize * 0.85, -finSize, finSize * 0.4);
+  ctx.quadraticCurveTo(-finSize * 0.6, finSize * 0.1, 0, 0);
+  ctx.fill();
+  ctx.restore();
+
   ctx.restore();
 }
 
@@ -595,9 +766,11 @@ function drawTail(
 // ══════════════════════════════════════════════
 function drawDorsalFin(
   ctx: CanvasRenderingContext2D, species: FishSpecies,
-  bodyLen: number, bodyHeight: number, radius: number, clockMs: number
+  bodyLen: number, bodyHeight: number, radius: number, clockMs: number,
+  lvl: number, isFrozen: boolean
 ) {
   if (species.dorsalFinHeight <= 0) return;
+  if (lvl <= 3) return; // 幼鱼苗没有背鳍 (Task 3)
 
   const finH = radius * species.dorsalFinHeight;
   const finLen = bodyLen * species.dorsalFinLength;
@@ -605,6 +778,23 @@ function drawDorsalFin(
   const wobble = Math.sin(clockMs * 0.008) * finH * 0.06;
 
   ctx.save();
+
+  if (isFrozen) {
+    // 冰晶背鳍 (Task 4)
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.8)';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = Math.max(1, radius * 0.04);
+    ctx.beginPath();
+    ctx.moveTo(startX, -bodyHeight * 0.75);
+    ctx.lineTo(startX - finLen * 0.45, -bodyHeight * 0.75 - finH * 1.2 + wobble);
+    ctx.lineTo(startX - finLen, -bodyHeight * 0.55);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
   ctx.fillStyle = species.finColor;
   ctx.globalAlpha = species.finAlpha * 0.85;
 
@@ -621,6 +811,19 @@ function drawDorsalFin(
   ctx.closePath();
   ctx.fill();
 
+  // 鳍部骨刺线条 (Task 2)
+  if (lvl >= 6) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.lineWidth = Math.max(0.6, radius * 0.02);
+    ctx.beginPath();
+    for (let i = 0; i < 4; i++) {
+      const f = 0.2 + i * 0.25;
+      ctx.moveTo(startX - finLen * f, -bodyHeight * 0.7);
+      ctx.lineTo(startX - finLen * f * 0.92, -bodyHeight * 0.75 - finH * (1 - Math.abs(f - 0.5) * 0.4) + wobble);
+    }
+    ctx.stroke();
+  }
+
   ctx.restore();
 }
 
@@ -630,18 +833,57 @@ function drawDorsalFin(
 function drawPectoralFins(
   ctx: CanvasRenderingContext2D, species: FishSpecies,
   bodyLen: number, bodyHeight: number, radius: number,
-  clockMs: number, speedFactor: number
+  clockMs: number, speedFactor: number, lvl: number, isFrozen: boolean
 ) {
   if (species.pectoralFinSize <= 0) return;
+  if (lvl <= 3) return; // 幼鱼苗没有胸鳍 (Task 3)
 
   const finSize = radius * species.pectoralFinSize;
   const finX = bodyLen * 0.15;
   const finPhase = Math.sin(clockMs * 0.01 * speedFactor) * 0.25;
 
   ctx.save();
+
+  if (isFrozen) {
+    // 冰晶胸鳍 (Task 4)
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.8)';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+
+    // 上侧
+    ctx.save();
+    ctx.translate(finX, -bodyHeight * 0.35);
+    ctx.rotate(-0.4);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-finSize * 0.9, -finSize * 0.75);
+    ctx.lineTo(-finSize * 0.6, -finSize * 0.1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    // 下侧
+    ctx.save();
+    ctx.translate(finX, bodyHeight * 0.35);
+    ctx.rotate(0.4);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-finSize * 0.9, finSize * 0.75);
+    ctx.lineTo(-finSize * 0.6, finSize * 0.1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.restore();
+    return;
+  }
+
   ctx.fillStyle = species.finColor;
   ctx.globalAlpha = species.finAlpha * 0.7;
 
+  // 上侧胸鳍
   ctx.save();
   ctx.translate(finX, -bodyHeight * 0.35);
   ctx.rotate(-0.4 + finPhase);
@@ -650,8 +892,17 @@ function drawPectoralFins(
   ctx.quadraticCurveTo(-finSize * 0.5, -finSize * 0.8, -finSize * 1.0, -finSize * 0.5);
   ctx.quadraticCurveTo(-finSize * 0.7, -finSize * 0.1, 0, 0);
   ctx.fill();
+  if (lvl >= 6) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(-finSize * 0.85, -finSize * 0.45);
+    ctx.moveTo(0, 0); ctx.lineTo(-finSize * 0.75, -finSize * 0.22);
+    ctx.stroke();
+  }
   ctx.restore();
 
+  // 下侧胸鳍
   ctx.save();
   ctx.translate(finX, bodyHeight * 0.35);
   ctx.rotate(0.4 - finPhase);
@@ -660,7 +911,72 @@ function drawPectoralFins(
   ctx.quadraticCurveTo(-finSize * 0.5, finSize * 0.8, -finSize * 1.0, finSize * 0.5);
   ctx.quadraticCurveTo(-finSize * 0.7, finSize * 0.1, 0, 0);
   ctx.fill();
+  if (lvl >= 6) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(-finSize * 0.85, finSize * 0.45);
+    ctx.moveTo(0, 0); ctx.lineTo(-finSize * 0.75, finSize * 0.22);
+    ctx.stroke();
+  }
   ctx.restore();
+
+  ctx.restore();
+}
+
+// ══════════════════════════════════════════════
+//  鱼身侧线描边 (Lvl >= 6 - Task 3)
+// ══════════════════════════════════════════════
+function drawLateralLine(ctx: CanvasRenderingContext2D, bodyLen: number, bodyHeight: number, radius: number, bodyWave: number) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+  ctx.lineWidth = Math.max(0.6, radius * 0.03);
+  ctx.setLineDash([6, 10]);
+  ctx.beginPath();
+  // 侧面感知线
+  ctx.moveTo(bodyLen * 0.22, -bodyHeight * 0.08);
+  ctx.quadraticCurveTo(
+    -bodyLen * 0.1, bodyHeight * 0.05 + bodyWave * 0.35,
+    -bodyLen * 0.38, bodyWave * 0.6
+  );
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+// ══════════════════════════════════════════════
+//  龙鳞网格纹理 (Lvl 8+ - Task 3)
+// ══════════════════════════════════════════════
+function drawScales(
+  ctx: CanvasRenderingContext2D, bodyLen: number, bodyHeight: number, radius: number, clipPath: Path2D
+) {
+  ctx.save();
+  ctx.clip(clipPath);
+
+  // 黄金瓦片重叠龙鳞
+  ctx.strokeStyle = 'rgba(244, 197, 66, 0.26)';
+  ctx.lineWidth = Math.max(0.5, radius * 0.02);
+
+  const colCount = 14;
+  const colSpacing = bodyLen * 0.88 / colCount;
+  const startX = -bodyLen * 0.4;
+
+  for (let c = 0; c < colCount; c++) {
+    const cx = startX + c * colSpacing;
+    const rowCount = 7;
+    const rowSpacing = bodyHeight * 1.5 / rowCount;
+    const startY = -bodyHeight * 0.7;
+
+    for (let r = 0; r < rowCount; r++) {
+      const cy = startY + r * rowSpacing + (c % 2 === 0 ? rowSpacing * 0.5 : 0);
+      const scaleR = colSpacing * 0.88;
+
+      ctx.beginPath();
+      // 向前张开的瓦状半圆鳞
+      ctx.arc(cx, cy, scaleR, -Math.PI * 0.45, Math.PI * 0.45);
+      ctx.stroke();
+    }
+  }
 
   ctx.restore();
 }
@@ -671,9 +987,10 @@ function drawPectoralFins(
 function drawPattern(
   ctx: CanvasRenderingContext2D, species: FishSpecies,
   bodyLen: number, bodyHeight: number, radius: number,
-  clipPath: Path2D
+  clipPath: Path2D, lvl: number
 ) {
   if (species.pattern === 'none' || species.pattern === 'bioluminescent') return;
+  if (lvl <= 3) return; // 幼鱼鱼苗无花纹 (Task 3)
 
   ctx.save();
   ctx.clip(clipPath);
@@ -776,11 +1093,11 @@ function drawMouth(
 }
 
 // ══════════════════════════════════════════════
-//  眼睛
+//  眼睛 (支持高级反光虹膜与多白点高光 - Task 1/3)
 // ══════════════════════════════════════════════
 function drawEye(
   ctx: CanvasRenderingContext2D, species: FishSpecies,
-  bodyLen: number, bodyHeight: number, radius: number
+  bodyLen: number, bodyHeight: number, radius: number, lvl: number
 ) {
   if (species.eyeSize <= 0) return;
 
@@ -788,25 +1105,140 @@ function drawEye(
   const eyeY = -bodyHeight * 0.28;
   const eyeR = radius * species.eyeSize;
 
+  // 幼鱼简化圆眼 (Task 3)
+  if (lvl <= 3) {
+    ctx.fillStyle = '#111111';
+    ctx.beginPath();
+    ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.beginPath();
+    ctx.arc(eyeX + eyeR * 0.2, eyeY - eyeR * 0.25, eyeR * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  // 1. 眼白
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
   ctx.ellipse(eyeX, eyeY, eyeR * 1.1, eyeR, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = species.eyeColor;
+  // 2. 炫彩渐变虹膜 (Task 1)
+  const eyeGrad = ctx.createRadialGradient(eyeX, eyeY, 0, eyeX, eyeY, eyeR * 0.85);
+  eyeGrad.addColorStop(0, species.eyeColor);
+  eyeGrad.addColorStop(1, darkenColor(species.eyeColor, 35));
+
+  ctx.fillStyle = eyeGrad;
   ctx.beginPath();
-  ctx.arc(eyeX + eyeR * 0.15, eyeY, eyeR * 0.65, 0, Math.PI * 2);
+  ctx.arc(eyeX + eyeR * 0.15, eyeY, eyeR * 0.72, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = '#111111';
+  // 3. 漆黑眼瞳
+  ctx.fillStyle = '#0f0f18';
   ctx.beginPath();
-  ctx.arc(eyeX + eyeR * 0.2, eyeY, eyeR * 0.35, 0, Math.PI * 2);
+  ctx.arc(eyeX + eyeR * 0.2, eyeY, eyeR * 0.42, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  // 4. 双白点高光 (Task 1)
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
   ctx.beginPath();
-  ctx.arc(eyeX + eyeR * 0.35, eyeY - eyeR * 0.25, eyeR * 0.15, 0, Math.PI * 2);
+  ctx.arc(eyeX + eyeR * 0.38, eyeY - eyeR * 0.28, eyeR * 0.18, 0, Math.PI * 2);
   ctx.fill();
+
+  if (lvl >= 6) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.beginPath();
+    ctx.arc(eyeX + eyeR * 0.08, eyeY + eyeR * 0.28, eyeR * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// ══════════════════════════════════════════════
+//  磁感感知角 (玩家 Magnet 激活临时进化 - Task 4)
+// ══════════════════════════════════════════════
+function drawMagnetAntennae(
+  ctx: CanvasRenderingContext2D, bodyLen: number, bodyHeight: number, radius: number, clockMs: number
+) {
+  const noseX = bodyLen * 0.55;
+  const hornSize = radius * 0.75;
+  const pulse = 1.0 + 0.12 * Math.sin(clockMs * 0.015);
+
+  ctx.save();
+  ctx.lineWidth = Math.max(1.0, radius * 0.06);
+  ctx.lineCap = 'round';
+
+  // 顶端磁胡须 (红色 S 极发光角)
+  ctx.strokeStyle = '#f43f5e';
+  ctx.shadowBlur = radius * 0.22;
+  ctx.shadowColor = '#f43f5e';
+  ctx.beginPath();
+  ctx.moveTo(noseX - radius * 0.1, -bodyHeight * 0.12);
+  ctx.quadraticCurveTo(
+    noseX + hornSize * 0.45, -bodyHeight * 0.4 - hornSize * 0.6,
+    noseX + hornSize * 0.88 * pulse, -bodyHeight * 0.35 - hornSize * 0.85
+  );
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(noseX + hornSize * 0.88 * pulse, -bodyHeight * 0.35 - hornSize * 0.85, radius * 0.12, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 底端磁胡须 (蓝色 N 极发光角)
+  ctx.strokeStyle = '#3b82f6';
+  ctx.shadowBlur = radius * 0.22;
+  ctx.shadowColor = '#3b82f6';
+  ctx.beginPath();
+  ctx.moveTo(noseX - radius * 0.1, bodyHeight * 0.12);
+  ctx.quadraticCurveTo(
+    noseX + hornSize * 0.45, bodyHeight * 0.4 + hornSize * 0.6,
+    noseX + hornSize * 0.88 * pulse, bodyHeight * 0.35 + hornSize * 0.85
+  );
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(noseX + hornSize * 0.88 * pulse, bodyHeight * 0.35 + hornSize * 0.85, radius * 0.12, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ══════════════════════════════════════════════
+//  黄金甲脊背甲板 (玩家 Shield 激活临时进化 - Task 4)
+// ══════════════════════════════════════════════
+function drawShieldSpines(ctx: CanvasRenderingContext2D, bodyLen: number, bodyHeight: number, radius: number) {
+  const plateCount = 5;
+  const plateSpacing = bodyLen * 0.55 / plateCount;
+  const startX = -bodyLen * 0.22;
+
+  ctx.save();
+  ctx.fillStyle = '#f59e0b';
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.0;
+  ctx.shadowBlur = radius * 0.18;
+  ctx.shadowColor = '#fbbf24';
+
+  for (let i = 0; i < plateCount; i++) {
+    const px = startX + i * plateSpacing;
+    const pSize = radius * (0.18 + (i / plateCount) * 0.12);
+
+    ctx.save();
+    ctx.translate(px, 0);
+    // 重叠瓦片黄金甲脊背刺
+    ctx.beginPath();
+    ctx.moveTo(0, -bodyHeight * 0.3);
+    ctx.quadraticCurveTo(-pSize * 0.4, -bodyHeight * 0.32 - pSize, -pSize * 1.05, -bodyHeight * 0.2);
+    ctx.lineTo(-pSize * 0.65, 0);
+    ctx.lineTo(-pSize * 1.05, bodyHeight * 0.2);
+    ctx.quadraticCurveTo(-pSize * 0.4, bodyHeight * 0.32 + pSize, 0, bodyHeight * 0.3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
 }
 
 // ══════════════════════════════════════════════
@@ -818,7 +1250,6 @@ function drawPredatorDecor(
   speciesIndex: number, clockMs: number
 ) {
   if (speciesIndex === 2) {
-    // 琵琶鱼: 头顶发光诱饵灯
     const lureX = bodyLen * 0.3;
     const lureY = -bodyHeight - radius * 0.3;
     const stalkLen = radius * 0.6;
@@ -847,7 +1278,6 @@ function drawPredatorDecor(
     ctx.arc(lureTipX, lureTipY, radius * 0.07, 0, Math.PI * 2);
     ctx.fill();
   } else if (speciesIndex === 0 || speciesIndex === 1) {
-    // 鲨鱼/巨梭: 牙齿轮廓
     const noseX = bodyLen * 0.55;
     ctx.fillStyle = '#dddddd';
     const toothCount = speciesIndex === 0 ? 5 : 3;
@@ -878,7 +1308,6 @@ function drawPlayerEffects(
 ) {
   const lvl = player.evolutionLevel;
 
-  // 1. 磁力光晕效果
   const isMagnetActive = player.magnetUntil !== null && player.magnetUntil > clockMs;
   if (isMagnetActive) {
     ctx.save();
@@ -913,7 +1342,6 @@ function drawPlayerEffects(
     ctx.restore();
   }
 
-  // 2. 气泡防口噬护盾外层
   if (player.shieldActive) {
     ctx.save();
     const bubblePulse = 1.0 + 0.04 * Math.sin(clockMs * 0.006);
@@ -939,7 +1367,6 @@ function drawPlayerEffects(
     ctx.restore();
   }
 
-  // Level 6+ 发光花纹
   if (lvl >= 6) {
     const pulseAlpha = 0.15 + 0.1 * Math.sin(clockMs * 0.004);
     ctx.save();
@@ -958,7 +1385,6 @@ function drawPlayerEffects(
     ctx.restore();
   }
 
-  // 骨化重甲护盾
   const shieldStack = player.mutations.find(m => m.id === 'mut_shield')?.stacks || 0;
   if (shieldStack > 0) {
     ctx.strokeStyle = 'rgba(244, 197, 66, 0.85)';
@@ -973,7 +1399,6 @@ function drawPlayerEffects(
     ctx.setLineDash([]);
   }
 
-  // 无敌状态闪烁
   if (player.isInvulnerableUntil && player.isInvulnerableUntil > clockMs) {
     if (Math.floor(clockMs / 100) % 2 === 0) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
@@ -983,7 +1408,6 @@ function drawPlayerEffects(
     }
   }
 
-  // Level 3+ 光晕效果
   if (lvl >= 3) {
     const haloAlpha = 0.06 + 0.04 * Math.sin(clockMs * 0.003);
     const haloGrad = ctx.createRadialGradient(0, 0, bodyLen * 0.3, 0, 0, bodyLen * 0.8);

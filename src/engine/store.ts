@@ -2,7 +2,7 @@
 
 import { createStore } from 'zustand/vanilla';
 import { WorldState, Player, AIEntity, ParticleEvent, Vector2, EntityType, GameStoreActions } from './types';
-import { GAME_CONFIG, getRadiusFromMass } from '../config/gameConfig';
+import { GAME_CONFIG, getRadiusFromMass, getLevelUpThreshold } from '../config/gameConfig';
 import { SpatialHashGridImpl } from './spatialHash';
 import { EntityPool } from './entityPool';
 import { movementSystem } from './systems/movementSystem';
@@ -67,6 +67,9 @@ export const gameStore = createStore<GameStore>((set, get) => {
       targetScale: 4.54,
     },
     pendingEvolutionChoices: null,
+    upgradeAnimationTimer: null,
+    upgradeAnimationType: null,
+    upgradeOriginalLevel: 0,
     stats: {
       totalEaten: 0,
       maxMassReached: GAME_CONFIG.INITIAL_MASS,
@@ -102,6 +105,9 @@ export const gameStore = createStore<GameStore>((set, get) => {
             targetScale: initialScale,
           },
           pendingEvolutionChoices: null,
+          upgradeAnimationTimer: null,
+          upgradeAnimationType: null,
+          upgradeOriginalLevel: 0,
           stats: {
             totalEaten: 0,
             maxMassReached: GAME_CONFIG.INITIAL_MASS,
@@ -161,16 +167,51 @@ export const gameStore = createStore<GameStore>((set, get) => {
             mutations.push({ id: mutationId, stacks: 1 });
           }
 
-          // 恢复游戏状态
+          const currentLevel = state.player.evolutionLevel;
+          const nextLevel = currentLevel + 1;
+          // 检测大突破升级节点 (Tadpole->2->Fry, Fry->4->Juv, Juv->6->Pred, Pred->8->Leviathan)
+          const isMajorUpgrade = nextLevel === 2 || nextLevel === 4 || nextLevel === 6 || nextLevel === 8;
+
+          if (isMajorUpgrade) {
+            // 爆散金黄色全屏冲击波粒子
+            get().actions.emitParticle({
+              kind: 'combo_flash',
+              position: { ...state.player.position },
+              ttlMs: 1500,
+              meta: { radius: state.player.radius * 6.5 }
+            });
+
+            // 爆散 20 个喷涌而出的黄金小粒子
+            for (let i = 0; i < 20; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const dist = state.player.radius * (0.8 + Math.random() * 2.0);
+              get().actions.emitParticle({
+                kind: 'item_pickup',
+                position: {
+                  x: state.player.position.x + Math.cos(angle) * dist,
+                  y: state.player.position.y + Math.sin(angle) * dist
+                },
+                ttlMs: 800 + Math.random() * 400,
+                meta: { colorType: 2 } // 黄金发光色 (默认黄色)
+              });
+            }
+          }
+
+          // 恢复游戏状态（若为大突破，切入 upgrade_animation 过场特写）
           return {
-            status: 'playing',
+            status: isMajorUpgrade ? 'upgrade_animation' : 'playing',
             pendingEvolutionChoices: null,
+            upgradeAnimationTimer: isMajorUpgrade ? state.logicalClockMs + 2500 : null,
+            upgradeAnimationType: isMajorUpgrade
+              ? (nextLevel === 2 ? 'tadpole_to_fry' : nextLevel === 4 ? 'fry_to_juv' : nextLevel === 6 ? 'juv_to_pred' : 'pred_to_levi')
+              : null,
+            upgradeOriginalLevel: currentLevel,
             player: {
               ...state.player,
               mutations,
-              evolutionLevel: state.player.evolutionLevel + 1,
-              // 获得短暂无敌保护 (1000ms) 避免恢复时瞬间暴毙
-              isInvulnerableUntil: state.logicalClockMs + 1000
+              evolutionLevel: nextLevel,
+              // 获得无敌保护
+              isInvulnerableUntil: state.logicalClockMs + (isMajorUpgrade ? 3500 : 1000)
             }
           };
         });
@@ -230,6 +271,19 @@ export const gameStore = createStore<GameStore>((set, get) => {
         }));
       },
 
+      cheatGainMass: () => {
+        set((state) => {
+          if (state.status !== 'playing') return {};
+          const nextThreshold = getLevelUpThreshold(state.player.evolutionLevel + 1);
+          return {
+            player: {
+              ...state.player,
+              mass: nextThreshold
+            }
+          };
+        });
+      },
+
       setCanvasSize: (width: number, height: number) => {
         set({ canvasWidth: width, canvasHeight: height });
       },
@@ -262,7 +316,7 @@ export const gameStore = createStore<GameStore>((set, get) => {
 
       runFixedTick: (dt: number) => {
         set((state) => {
-          if (state.status !== 'playing') return {};
+          if (state.status !== 'playing' && state.status !== 'upgrade_animation') return {};
 
           const nextClock = state.logicalClockMs + dt;
           
@@ -270,6 +324,40 @@ export const gameStore = createStore<GameStore>((set, get) => {
           const nextParticles = state.particles.filter(
             p => nextClock - p.createdAt < p.ttlMs
           );
+
+          // 1. 如果处于大突破过场动画状态，暂停一切物理和 AI，仅处理时钟、粒子和相机缩放 (Task 2/4)
+          if (state.status === 'upgrade_animation') {
+            const isFinished = state.upgradeAnimationTimer !== null && nextClock >= state.upgradeAnimationTimer;
+            
+            const updatedStateForCamera: WorldState = {
+              status: isFinished ? 'playing' : 'upgrade_animation',
+              logicalClockMs: nextClock,
+              player: state.player,
+              entities: state.entities,
+              spatialHash: state.spatialHash,
+              particles: nextParticles,
+              camera: { ...state.camera },
+              pendingEvolutionChoices: state.pendingEvolutionChoices,
+              upgradeAnimationTimer: isFinished ? null : state.upgradeAnimationTimer,
+              upgradeAnimationType: isFinished ? null : state.upgradeAnimationType,
+              upgradeOriginalLevel: state.upgradeOriginalLevel,
+              stats: state.stats
+            };
+            cameraSystem(updatedStateForCamera, state.canvasWidth);
+
+            return {
+              logicalClockMs: nextClock,
+              particles: nextParticles,
+              status: isFinished ? 'playing' : 'upgrade_animation',
+              upgradeAnimationTimer: isFinished ? null : state.upgradeAnimationTimer,
+              upgradeAnimationType: isFinished ? null : state.upgradeAnimationType,
+              camera: updatedStateForCamera.camera,
+              player: {
+                ...state.player,
+                isInvulnerableUntil: isFinished ? nextClock + 1000 : state.player.isInvulnerableUntil
+              }
+            };
+          }
 
           const nextSurvivalMs = state.stats.survivalMs + dt;
 
@@ -282,6 +370,9 @@ export const gameStore = createStore<GameStore>((set, get) => {
             particles: [...nextParticles],
             camera: { ...state.camera },
             pendingEvolutionChoices: state.pendingEvolutionChoices,
+            upgradeAnimationTimer: state.upgradeAnimationTimer,
+            upgradeAnimationType: state.upgradeAnimationType,
+            upgradeOriginalLevel: state.upgradeOriginalLevel,
             stats: {
               ...state.stats,
               survivalMs: nextSurvivalMs

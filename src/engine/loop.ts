@@ -16,11 +16,11 @@ function rafLoop(now: number) {
 
   const currentState = gameStore.getState();
   
-  if (currentState.status === 'playing') {
+  if (currentState.status === 'playing' || currentState.status === 'upgrade_animation') {
     accumulator += frameDt;
     while (accumulator >= TICK_MS) {
-      // 双重检查状态，因为在这个 tick 中可能触发了升级暂停
-      if (gameStore.getState().status === 'playing') {
+      const currentStatus = gameStore.getState().status;
+      if (currentStatus === 'playing' || currentStatus === 'upgrade_animation') {
         gameStore.getState().actions.runFixedTick(TICK_MS);
       } else {
         accumulator = 0;

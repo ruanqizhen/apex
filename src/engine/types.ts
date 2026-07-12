@@ -78,6 +78,7 @@ export interface GameStoreActions {
   onLevelUp?: () => void;
   onGameOver?: () => void;
   triggerActiveSkill?: () => void; // 主动技能释放 (Task 1)
+  cheatGainMass?: () => void; // 开发者测试作弊增重键
 }
 
 export interface Player extends BaseEntity {
@@ -112,7 +113,7 @@ export interface CameraState {
   targetScale: number;
 }
 
-export type GameStatus = "start_screen" | "playing" | "paused_evolution" | "game_over";
+export type GameStatus = "start_screen" | "playing" | "paused_evolution" | "game_over" | "upgrade_animation";
 
 export interface SpatialHashGrid {
   cellSize: number;
@@ -133,6 +134,9 @@ export interface WorldState {
   particles: ParticleEvent[];      // Ephemeral Rendering Queue，独立于逻辑状态
   camera: CameraState;
   pendingEvolutionChoices: MutationCardDef[] | null;
+  upgradeAnimationTimer: number | null; // 升级动画截止逻辑时钟 (Task 1)
+  upgradeAnimationType: 'tadpole_to_fry' | 'fry_to_juv' | 'juv_to_pred' | 'pred_to_levi' | null; // 升级大类 (Task 1)
+  upgradeOriginalLevel: number; // 升级前的等级
   stats: {
     totalEaten: number;
     maxMassReached: number;

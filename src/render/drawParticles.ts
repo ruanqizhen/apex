@@ -119,15 +119,27 @@ export function drawParticles(
       const size = p.meta?.size || 4;
       const vx = p.meta?.vx || 0;
       const vy = p.meta?.vy || 0;
+      const isGold = p.meta?.isGold === 1;
       
       const px = p.position.x + vx * progress * 40;
       const py = p.position.y + vy * progress * 40 - progress * 20; // 向上漂移
 
-      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.45})`;
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(px, py, Math.max(0.6, size * (1 - progress * 0.6)), 0, Math.PI * 2);
-      ctx.stroke();
+      if (isGold) {
+        // 黄金流光微粒气泡 (Task 5)
+        ctx.strokeStyle = `rgba(244, 197, 66, ${alpha * 0.8})`;
+        ctx.fillStyle = `rgba(255, 220, 100, ${alpha * 0.45})`;
+        ctx.lineWidth = 1.0;
+        ctx.beginPath();
+        ctx.arc(px, py, Math.max(0.6, size * (1.1 - progress * 0.65)), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.45})`;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(px, py, Math.max(0.6, size * (1 - progress * 0.6)), 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }     else if (p.kind === 'shield_break') {
       const isBubble = p.meta?.isBubble === 1;
       const count = 12;
