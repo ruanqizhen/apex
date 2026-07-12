@@ -47,8 +47,8 @@ export const CanvasRenderer = {
       drawEntity(ctx, player, state);
     }
 
-    // 绘制爆发与拖尾粒子 (传入玩家坐标用于吞噬物理吸入动画)
-    drawParticles(ctx, particles, logicalClockMs, player.position);
+    // 绘制爆发与拖尾粒子 (传入玩家坐标、朝向、半径用于吞噬物理吸入动画)
+    drawParticles(ctx, particles, logicalClockMs, player.position, player.facing, player.radius);
 
     ctx.restore();
 

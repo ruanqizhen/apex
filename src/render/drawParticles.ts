@@ -4,7 +4,9 @@ export function drawParticles(
   ctx: CanvasRenderingContext2D,
   particles: ParticleEvent[],
   logicalClockMs: number,
-  playerPos?: Vector2
+  playerPos?: Vector2,
+  playerFacing?: number,
+  playerRadius?: number
 ) {
   ctx.save();
 
@@ -40,10 +42,19 @@ export function drawParticles(
       // 被吞下的小鱼物理缩水吸入动画 — 带挣扎效果
       const startX = p.position.x;
       const startY = p.position.y;
-      const targetX = playerPos?.x ?? startX;
-      const targetY = playerPos?.y ?? startY;
       
-      // 使用 Ease-In 平滑运动向玩家游动吸入
+      // 默认吸向玩家中心
+      let targetX = playerPos?.x ?? startX;
+      let targetY = playerPos?.y ?? startY;
+
+      // 如果有玩家朝向和半径，我们将目标点精准对齐到玩家的大嘴部 (noseX) 处以实现「一口吞下」效果
+      if (playerPos && playerFacing !== undefined && playerRadius !== undefined) {
+        const mouthOffsetDist = playerRadius * 1.4 * 0.55; // 对应鼻头 noseX 位置
+        targetX += Math.cos(playerFacing) * mouthOffsetDist;
+        targetY += Math.sin(playerFacing) * mouthOffsetDist;
+      }
+      
+      // 使用 Ease-In 平滑运动向玩家大嘴吸入
       const t = progress;
       const currentX = startX + (targetX - startX) * t * t;
       const currentY = startY + (targetY - startY) * t * t;

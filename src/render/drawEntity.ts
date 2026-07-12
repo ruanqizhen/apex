@@ -67,25 +67,39 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
   }
 
   // ── Player Lvl 0-1 孢子小蝌蚪特殊绘制 ──
+  // ── Player Lvl 0-1 孢子小蝌蚪特殊绘制 ──
   if (isPlayer && lvl <= 1) {
+    // 吞食张嘴和膨胀动画
+    const msSinceEat = logicalClockMs - player!.comboLastEatAt;
+    let gulpScale = 1.0;
+    let mouthOpen = 0;
+    if (msSinceEat >= 0 && msSinceEat < 350) {
+      const t = msSinceEat / 350;
+      // 小蝌蚪整体发生有弹性的饱腹膨胀
+      gulpScale = 1.0 + Math.sin(t * Math.PI) * 0.22;
+      mouthOpen = Math.pow(Math.sin(t * Math.PI), 0.7) * 1.3;
+    }
+
+    const currentRadius = radius * gulpScale;
+
     // 黄金小蝌蚪发光
-    ctx.shadowBlur = radius * 0.65;
+    ctx.shadowBlur = currentRadius * 0.65;
     ctx.shadowColor = 'rgba(245, 158, 11, 0.7)';
 
     // 1. 绘制摆动的黄色尾巴
     const phase = logicalClockMs * 0.016;
-    const swing1 = Math.sin(phase) * radius * 0.45;
-    const swing2 = Math.sin(phase - 1.2) * radius * 0.78;
+    const swing1 = Math.sin(phase) * currentRadius * 0.45;
+    const swing2 = Math.sin(phase - 1.2) * currentRadius * 0.78;
     
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     
     // 叠加 4 段折线使得小尾巴自然渐细
     const tailPoints = [
-      { x: -radius * 0.2, y: 0, w: radius * 0.45 },
-      { x: -radius * 0.9, y: swing1 * 0.4, w: radius * 0.32 },
-      { x: -radius * 1.7, y: swing1, w: radius * 0.2 },
-      { x: -radius * 2.5, y: swing2, w: radius * 0.08 }
+      { x: -currentRadius * 0.2, y: 0, w: currentRadius * 0.45 },
+      { x: -currentRadius * 0.9, y: swing1 * 0.4, w: currentRadius * 0.32 },
+      { x: -currentRadius * 1.7, y: swing1, w: currentRadius * 0.2 },
+      { x: -currentRadius * 2.5, y: swing2, w: currentRadius * 0.08 }
     ];
 
     for (let i = 0; i < tailPoints.length - 1; i++) {
@@ -100,7 +114,7 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
     }
 
     // 2. 绘制黄色圆球头部
-    const headRadius = radius * 0.78;
+    const headRadius = currentRadius * 0.78;
     const headGrad = ctx.createRadialGradient(-headRadius * 0.2, -headRadius * 0.2, 0, 0, 0, headRadius);
     headGrad.addColorStop(0, '#fffbeb'); // 暖白高光
     headGrad.addColorStop(0.35, '#fbbf24'); // 橙黄
@@ -140,6 +154,97 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
     ctx.arc(eyeX + eyeR * 0.3, eyeY - eyeR * 0.2, eyeR * 0.22, 0, Math.PI * 2);
     ctx.fill();
 
+    // 4. 绘制小蝌蚪的特色鱼嘴
+    const mouthCenterRadius = headRadius;
+    if (mouthOpen > 0.05) {
+      // 开口吞食：在右下角 (前下方) 削出一个张开的深红巨口
+      const gapeHalfAngle = 0.45 * mouthOpen; // 张开的弧度半角 (最大约25度)
+      const mouthAngle = 0.12 * Math.PI; // 嘴巴中轴角度偏向斜前方
+      
+      const upperLipAngle = mouthAngle - gapeHalfAngle;
+      const lowerLipAngle = mouthAngle + gapeHalfAngle;
+      
+      const ux = Math.cos(upperLipAngle) * mouthCenterRadius;
+      const uy = Math.sin(upperLipAngle) * mouthCenterRadius;
+      const lx = Math.cos(lowerLipAngle) * mouthCenterRadius;
+      const ly = Math.sin(lowerLipAngle) * mouthCenterRadius;
+      
+      // 嘴角 (向内凹入的喉部深点)
+      const cornerX = Math.cos(mouthAngle) * mouthCenterRadius * 0.42;
+      const cornerY = Math.sin(mouthAngle) * mouthCenterRadius * 0.42;
+      
+      // 绘制深红色喉咙内腔
+      ctx.fillStyle = '#220505';
+      ctx.beginPath();
+      ctx.moveTo(ux, uy);
+      ctx.quadraticCurveTo(cornerX + headRadius * 0.12, cornerY - headRadius * 0.08, cornerX, cornerY);
+      ctx.quadraticCurveTo(cornerX + headRadius * 0.12, cornerY + headRadius * 0.08, lx, ly);
+      ctx.quadraticCurveTo(ux + headRadius * 0.25 * mouthOpen, (uy + ly) / 2, ux, uy);
+      ctx.closePath();
+      ctx.fill();
+
+      // 绘制粉红光晕渐变
+      const radGrd = ctx.createRadialGradient(cornerX, cornerY, 1, cornerX, cornerY, headRadius * mouthOpen * 0.55);
+      radGrd.addColorStop(0, '#881515');
+      radGrd.addColorStop(0.5, '#440909');
+      radGrd.addColorStop(1, 'rgba(34, 5, 5, 0)');
+      ctx.fillStyle = radGrd;
+      ctx.beginPath();
+      ctx.moveTo(ux, uy);
+      ctx.quadraticCurveTo(cornerX + headRadius * 0.12, cornerY - headRadius * 0.08, cornerX, cornerY);
+      ctx.quadraticCurveTo(cornerX + headRadius * 0.12, cornerY + headRadius * 0.08, lx, ly);
+      ctx.quadraticCurveTo(ux + headRadius * 0.25 * mouthOpen, (uy + ly) / 2, ux, uy);
+      ctx.closePath();
+      ctx.fill();
+
+      // 绘制两颗萌系小尖牙
+      ctx.fillStyle = '#ffffff';
+      // 上排小尖牙
+      const tux = ux - (ux - cornerX) * 0.35;
+      const tuy = uy - (uy - cornerY) * 0.35;
+      ctx.beginPath();
+      ctx.moveTo(tux, tuy);
+      ctx.lineTo(tux - headRadius * 0.07, tuy + headRadius * 0.12);
+      ctx.lineTo(tux - headRadius * 0.03, tuy + headRadius * 0.04);
+      ctx.closePath();
+      ctx.fill();
+      // 下排小尖牙
+      const tlx = lx - (lx - cornerX) * 0.35;
+      const tly = ly - (ly - cornerY) * 0.35;
+      ctx.beginPath();
+      ctx.moveTo(tlx, tly);
+      ctx.lineTo(tlx - headRadius * 0.07, tly - headRadius * 0.12);
+      ctx.lineTo(tlx - headRadius * 0.03, tly - headRadius * 0.04);
+      ctx.closePath();
+      ctx.fill();
+
+      // 黄色小嘴唇描边
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = Math.max(1.5, headRadius * 0.07);
+      ctx.lineCap = 'round';
+      
+      ctx.beginPath();
+      ctx.moveTo(ux - headRadius * 0.08, uy - headRadius * 0.04);
+      ctx.lineTo(ux, uy);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(lx - headRadius * 0.08, ly + headRadius * 0.04);
+      ctx.lineTo(lx, ly);
+      ctx.stroke();
+    } else {
+      // 闭合状态：绘制萌萌的小微笑线
+      const mouthX = headRadius * 0.85;
+      const mouthY = headRadius * 0.15;
+      ctx.strokeStyle = '#b45309'; // 琥珀深色描边
+      ctx.lineWidth = Math.max(1.2, headRadius * 0.08);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(mouthX - headRadius * 0.18, mouthY);
+      ctx.quadraticCurveTo(mouthX, mouthY + headRadius * 0.06, mouthX - headRadius * 0.08, mouthY + headRadius * 0.15);
+      ctx.stroke();
+    }
+
     ctx.restore(); // 仅此一个 restore() 即可完美平衡外层的 save()
     return;
   }
@@ -176,10 +281,12 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
   let mouthOpen = 0;
   if (isPlayer) {
     const msSinceEat = logicalClockMs - player!.comboLastEatAt;
-    if (msSinceEat >= 0 && msSinceEat < 250) {
-      const t = msSinceEat / 250;
-      gulpScale = 1.0 + Math.sin(t * Math.PI) * 0.18;
-      mouthOpen = Math.sin(t * Math.PI) * 0.9;
+    if (msSinceEat >= 0 && msSinceEat < 350) {
+      const t = msSinceEat / 350;
+      // 身体发生吞食膨胀/收缩的戏剧性动效
+      gulpScale = 1.0 + Math.sin(t * Math.PI) * 0.22;
+      // 口腔张开角度曲线：快速张开，短暂停留，然后紧紧咬合关闭
+      mouthOpen = Math.pow(Math.sin(t * Math.PI), 0.7) * 1.3;
     }
   }
 
@@ -1214,32 +1321,87 @@ function drawMouth(
   const noseX = bodyLen * 0.55;
 
   if (mouthOpen > 0.05) {
-    const gape = bodyHeight * 0.3 * mouthOpen;
-    ctx.fillStyle = '#1a0505';
+    const gapeY = bodyHeight * 0.45 * mouthOpen; // 嘴部张开的垂直高度比例
+    const throatX = noseX - bodyLen * 0.35 * Math.min(1.0, mouthOpen); // 深色喉咙空腔深度
+    const upperJawX = noseX - bodyLen * 0.05 * mouthOpen;
+    const lowerJawX = noseX - bodyLen * 0.08 * mouthOpen;
+
+    // 1. 绘制极深暗的红黑空腔 (喉咙深处)
+    ctx.fillStyle = '#220505';
     ctx.beginPath();
-    ctx.moveTo(noseX - radius * 0.15, -gape * 0.2);
-    ctx.quadraticCurveTo(noseX + radius * 0.1, -gape, noseX - radius * 0.05, -gape * 0.3);
-    ctx.quadraticCurveTo(noseX + radius * 0.1, gape, noseX - radius * 0.15, gape * 0.2);
+    ctx.moveTo(upperJawX, -gapeY);
+    ctx.quadraticCurveTo(throatX + bodyLen * 0.1, -gapeY * 0.2, throatX, 0);
+    ctx.quadraticCurveTo(throatX + bodyLen * 0.1, gapeY * 0.2, lowerJawX, gapeY);
+    ctx.quadraticCurveTo(noseX + bodyLen * 0.1 * mouthOpen, 0, upperJawX, -gapeY);
     ctx.closePath();
     ctx.fill();
 
-    if (type === EntityType.Predator || type === EntityType.Player) {
-      ctx.fillStyle = '#eeeeee';
-      const teethCount = 4;
+    // 2. 绘制鲜红/粉红色内壁辐射渐变光晕 (喉咙通道)
+    const radGrd = ctx.createRadialGradient(throatX, 0, 2, throatX, 0, radius * mouthOpen * 0.85);
+    radGrd.addColorStop(0, '#801212');
+    radGrd.addColorStop(0.4, '#440909');
+    radGrd.addColorStop(1, 'rgba(34, 5, 5, 0)');
+    ctx.fillStyle = radGrd;
+    ctx.beginPath();
+    ctx.moveTo(upperJawX, -gapeY);
+    ctx.quadraticCurveTo(throatX + bodyLen * 0.1, -gapeY * 0.2, throatX, 0);
+    ctx.quadraticCurveTo(throatX + bodyLen * 0.1, gapeY * 0.2, lowerJawX, gapeY);
+    ctx.quadraticCurveTo(noseX + bodyLen * 0.1 * mouthOpen, 0, upperJawX, -gapeY);
+    ctx.closePath();
+    ctx.fill();
+
+    // 3. 为玩家和大型掠食者绘制一口锐利的白色钢牙 (向口内倾斜)
+    if (type === EntityType.Player || type === EntityType.Predator) {
+      ctx.fillStyle = '#f5f5f5';
+      ctx.strokeStyle = '#220202';
+      ctx.lineWidth = Math.max(0.4, radius * 0.015);
+
+      const teethCount = 3;
+      // 上牙排
       for (let i = 0; i < teethCount; i++) {
-        const tx = noseX - radius * 0.1 + i * radius * 0.04;
+        const ratio = i / (teethCount - 1);
+        const tx = upperJawX - (upperJawX - throatX) * 0.45 * ratio;
+        const ty = -gapeY + (gapeY) * 0.35 * ratio;
         ctx.beginPath();
-        ctx.moveTo(tx, -gape * 0.15);
-        ctx.lineTo(tx + radius * 0.015, -gape * 0.05);
-        ctx.lineTo(tx + radius * 0.03, -gape * 0.15);
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(tx - radius * 0.11, ty + radius * 0.16); // 尖端斜插入嘴中
+        ctx.lineTo(tx - radius * 0.04, ty + radius * 0.07);
+        ctx.closePath();
         ctx.fill();
+        ctx.stroke();
+      }
+      // 下牙排
+      for (let i = 0; i < teethCount; i++) {
+        const ratio = i / (teethCount - 1);
+        const tx = lowerJawX - (lowerJawX - throatX) * 0.45 * ratio;
+        const ty = gapeY - (gapeY) * 0.35 * ratio;
         ctx.beginPath();
-        ctx.moveTo(tx, gape * 0.15);
-        ctx.lineTo(tx + radius * 0.015, gape * 0.05);
-        ctx.lineTo(tx + radius * 0.03, gape * 0.15);
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(tx - radius * 0.11, ty - radius * 0.16); // 尖端斜向上插入嘴中
+        ctx.lineTo(tx - radius * 0.04, ty - radius * 0.07);
+        ctx.closePath();
         ctx.fill();
+        ctx.stroke();
       }
     }
+
+    // 4. 绘制丰满的嘴唇轮廓覆盖边缘，使衔接自然
+    ctx.strokeStyle = species.finColor || species.bodyColor;
+    ctx.lineWidth = Math.max(1.8, radius * 0.07);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    // 上唇
+    ctx.beginPath();
+    ctx.moveTo(upperJawX - bodyLen * 0.08, -gapeY * 0.88);
+    ctx.lineTo(upperJawX, -gapeY);
+    ctx.stroke();
+
+    // 下唇
+    ctx.beginPath();
+    ctx.moveTo(lowerJawX - bodyLen * 0.08, gapeY * 0.88);
+    ctx.lineTo(lowerJawX, gapeY);
+    ctx.stroke();
   } else {
     ctx.strokeStyle = darkenColor(species.bodyColor, 30);
     ctx.lineWidth = Math.max(0.5, radius * 0.03);
