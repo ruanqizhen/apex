@@ -59,6 +59,14 @@ const getMutationIcon = (id: string) => {
           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="rgba(143, 227, 176, 0.2)"/>
         </svg>
       );
+    case 'mut_ink':
+      return (
+        <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#C084FC" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 3a6 6 0 0 0-9 9 9 9 0 0 0 18 0 6 6 0 0 0-9-9z" fill="rgba(192, 132, 252, 0.25)"/>
+          <circle cx="8" cy="13" r="2" fill="#C084FC"/>
+          <circle cx="16" cy="13" r="2" fill="#C084FC"/>
+        </svg>
+      );
     default:
       return (
         <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">

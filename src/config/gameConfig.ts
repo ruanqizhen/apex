@@ -129,6 +129,12 @@ export const getRadiusFromMass = (mass: number): number => {
 };
 
 export const getLevelUpThreshold = (level: number): number => {
-  // levelUpMassThreshold(n) = INITIAL_MASS * (1.5 ^ n)，n 为等级 1, 2, 3...
-  return GAME_CONFIG.INITIAL_MASS * Math.pow(1.5, level);
+  if (level <= 0) return GAME_CONFIG.INITIAL_MASS;
+  // 突破难度递增公式：T(n) = T(n-1) * (1.3 + 0.15 * n)
+  // 这使得 Lvl 1->2 需增长 60% 质量，Lvl 2->3 需增长 75% 质量，Lvl 7->8 需增长 150% 质量，越来越困难
+  let threshold = GAME_CONFIG.INITIAL_MASS;
+  for (let i = 1; i <= level; i++) {
+    threshold *= (1.3 + 0.15 * i);
+  }
+  return Math.round(threshold);
 };
