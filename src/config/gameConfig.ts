@@ -22,7 +22,7 @@ export const GAME_CONFIG = {
   FRENZY_EAT_RADIUS_MULTIPLIER: 1.5, // 狂热时吞噬半径 ×1.5
 
   // 实体密度与上限
-  MAX_PLANKTON: 150,
+  MAX_PLANKTON: 60,
   MAX_PREY: 60,
   MAX_COMPETITOR: 20,
   MAX_PREDATOR: 8,
@@ -130,11 +130,16 @@ export const getRadiusFromMass = (mass: number): number => {
 
 export const getLevelUpThreshold = (level: number): number => {
   if (level <= 0) return GAME_CONFIG.INITIAL_MASS;
-  // 突破难度递增公式：T(n) = T(n-1) * (1.3 + 0.15 * n)
-  // 这使得 Lvl 1->2 需增长 60% 质量，Lvl 2->3 需增长 75% 质量，Lvl 7->8 需增长 150% 质量，越来越困难
+  // 升级阈值递增公式：T(n) = T(n-1) * (2.0 + 0.25 * n)
+  // 目标：每级需 2~3 分钟才能升级，且后期时间越来越长
+  // Lvl 0->1: 100 * 2.25 = 225 (需吃 125 mass)
+  // Lvl 1->2: 225 * 2.50 = 563 (需吃 338 mass)
+  // Lvl 2->3: 563 * 2.75 = 1547 (需吃 985 mass)
+  // Lvl 3->4: 1547 * 3.00 = 4641 (需吃 3094 mass)
+  // 后期越来越需要大量猎食才能升级
   let threshold = GAME_CONFIG.INITIAL_MASS;
   for (let i = 1; i <= level; i++) {
-    threshold *= (1.3 + 0.15 * i);
+    threshold *= (2.0 + 0.25 * i);
   }
   return Math.round(threshold);
 };

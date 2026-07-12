@@ -96,10 +96,13 @@ export function spawnSystem(
       dynamicMaxCompetitors = Math.min(30, 8 + (level - 2) * 3);
     }
 
+    // 浮游生物密度也按等级梯度调整，初始稀疏避免过快升级
+    const dynamicMaxPlankton = level === 0 ? 30 : level === 1 ? 40 : GAME_CONFIG.MAX_PLANKTON;
+
     // 补充 Plankton
-    if (planktonCount < GAME_CONFIG.MAX_PLANKTON) {
-      const needed = GAME_CONFIG.MAX_PLANKTON - planktonCount;
-      const batchSize = Math.min(needed, 15); // 每 300ms 最多生 15 个，平滑帧率
+    if (planktonCount < dynamicMaxPlankton) {
+      const needed = dynamicMaxPlankton - planktonCount;
+      const batchSize = Math.min(needed, 10); // 每 300ms 最多生 10 个，平滑帧率
       for (let i = 0; i < batchSize; i++) {
         spawnEntity(EntityType.Plankton, initialPlayerRadius);
       }
@@ -151,8 +154,8 @@ export function spawnSystem(
       if (player.evolutionLevel <= 1) {
         // 孢子小蝌蚪阶段尺寸适配：
         if (type === EntityType.Plankton) {
-          // 食物（各种单细胞生物）小于小蝌蚪，但不要太小 (约玩家初始半径的 45%~70%)
-          const ratio = 0.45 + Math.random() * 0.25;
+          // 食物（各种单细胞生物）小于小蝌蚪，约玩家初始半径的 20%~35%
+          const ratio = 0.20 + Math.random() * 0.15;
           radius = playerInitialRadius * ratio;
           perceptionRadius = 0;
           baseSpeed = 0.5;
@@ -187,7 +190,7 @@ export function spawnSystem(
         // 稚鱼及以上阶段（常规尺寸逻辑）：
         if (type === EntityType.Plankton) {
           // 浮游生物随玩家成长而按比例变大，防止在相机缩放后缩为单像素点
-          const ratio = 0.08 + Math.random() * 0.07;
+          const ratio = 0.04 + Math.random() * 0.05;
           radius = player.radius * ratio;
           perceptionRadius = 0;
           baseSpeed = 0.5;
