@@ -13,6 +13,7 @@ import { collisionSystem } from './systems/collisionSystem';
 import { consumptionSystem } from './systems/consumptionSystem';
 import { comboFrenzySystem } from './systems/comboFrenzySystem';
 import { evolutionSystem } from './systems/evolutionSystem';
+import { currentSystem } from './systems/currentSystem';
 
 export type GameStore = WorldState & {
   actions: GameStoreActions;
@@ -70,6 +71,8 @@ export const gameStore = createStore<GameStore>((set, get) => {
     upgradeAnimationTimer: null,
     upgradeAnimationType: null,
     upgradeOriginalLevel: 0,
+    killCamUntil: null,
+    currents: [],
     stats: {
       totalEaten: 0,
       maxMassReached: GAME_CONFIG.INITIAL_MASS,
@@ -108,6 +111,8 @@ export const gameStore = createStore<GameStore>((set, get) => {
           upgradeAnimationTimer: null,
           upgradeAnimationType: null,
           upgradeOriginalLevel: 0,
+          killCamUntil: null,
+          currents: [],
           stats: {
             totalEaten: 0,
             maxMassReached: GAME_CONFIG.INITIAL_MASS,
@@ -341,6 +346,8 @@ export const gameStore = createStore<GameStore>((set, get) => {
               upgradeAnimationTimer: isFinished ? null : state.upgradeAnimationTimer,
               upgradeAnimationType: isFinished ? null : state.upgradeAnimationType,
               upgradeOriginalLevel: state.upgradeOriginalLevel,
+              killCamUntil: state.killCamUntil,
+              currents: state.currents,
               stats: state.stats
             };
             cameraSystem(updatedStateForCamera, state.canvasWidth);
@@ -352,12 +359,23 @@ export const gameStore = createStore<GameStore>((set, get) => {
               upgradeAnimationTimer: isFinished ? null : state.upgradeAnimationTimer,
               upgradeAnimationType: isFinished ? null : state.upgradeAnimationType,
               camera: updatedStateForCamera.camera,
+              killCamUntil: state.killCamUntil,
+              currents: state.currents,
               player: {
                 ...state.player,
                 isInvulnerableUntil: isFinished ? nextClock + 1000 : state.player.isInvulnerableUntil
               }
             };
           }
+
+          // 击杀特写慢动作处理 (Kill Cam)
+          let effectiveDt = dt;
+          const isKillCam = state.killCamUntil !== null && state.killCamUntil > nextClock;
+          if (isKillCam) {
+            effectiveDt = dt * 0.3; // 慢动作系数
+          }
+          // 清理已过期的 killCam
+          const nextKillCamUntil = (state.killCamUntil !== null && state.killCamUntil <= nextClock) ? null : state.killCamUntil;
 
           const nextSurvivalMs = state.stats.survivalMs + dt;
 
@@ -373,6 +391,8 @@ export const gameStore = createStore<GameStore>((set, get) => {
             upgradeAnimationTimer: state.upgradeAnimationTimer,
             upgradeAnimationType: state.upgradeAnimationType,
             upgradeOriginalLevel: state.upgradeOriginalLevel,
+            killCamUntil: nextKillCamUntil,
+            currents: [...state.currents],
             stats: {
               ...state.stats,
               survivalMs: nextSurvivalMs
@@ -381,7 +401,7 @@ export const gameStore = createStore<GameStore>((set, get) => {
           };
 
           // 物理位移与冲刺消耗
-          movementSystem(updatedState, dt, (particle: any) => {
+          movementSystem(updatedState, effectiveDt, (particle: any) => {
             const id = `particle_${particleIdCounter++}`;
             updatedState.particles.push({
               ...particle,
@@ -391,7 +411,7 @@ export const gameStore = createStore<GameStore>((set, get) => {
           });
 
           // AI状态与速度计算
-          aiSystem(updatedState, dt);
+          aiSystem(updatedState, effectiveDt);
 
           // 弹性物理碰撞
           collisionSystem(updatedState);
@@ -419,8 +439,11 @@ export const gameStore = createStore<GameStore>((set, get) => {
           // 突变进化升级检查
           evolutionSystem(updatedState);
 
+          // 深海涌流环境系统
+          currentSystem(updatedState, effectiveDt, state.canvasWidth, state.canvasHeight);
+
           // 动态生态补充与越界回收
-          spawnSystem(updatedState, dt, state.canvasWidth, state.canvasHeight, globalEntityPool);
+          spawnSystem(updatedState, effectiveDt, state.canvasWidth, state.canvasHeight, globalEntityPool);
 
           // 相机居中与缩放
           cameraSystem(updatedState, state.canvasWidth);
@@ -433,7 +456,9 @@ export const gameStore = createStore<GameStore>((set, get) => {
             player: updatedState.player,
             camera: updatedState.camera,
             entities: updatedState.entities,
-            pendingEvolutionChoices: updatedState.pendingEvolutionChoices
+            pendingEvolutionChoices: updatedState.pendingEvolutionChoices,
+            killCamUntil: updatedState.killCamUntil,
+            currents: updatedState.currents
           };
         });
       }

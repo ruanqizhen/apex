@@ -74,7 +74,7 @@ export function collisionSystem(state: WorldState) {
 
   // 2. AIs 之间的相互碰撞 (直接使用迭代器遍历，避免 Array.from 产生的 GC 压力)
   for (const A of state.entities.values()) {
-    if (!A.isAlive || A.type === EntityType.Plankton) continue; // 浮游生物不发生碰撞
+    if (!A.isAlive || A.type === EntityType.Plankton || A.type === EntityType.Gem) continue; // 浮游生物和宝石不发生碰撞
 
     const nearbyAI = state.spatialHash.queryNearby(A.position, A.radius * 2.5);
     for (let j = 0; j < nearbyAI.length; j++) {

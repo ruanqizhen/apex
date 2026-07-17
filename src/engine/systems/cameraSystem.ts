@@ -16,6 +16,10 @@ export function cameraSystem(state: WorldState, canvasWidth: number) {
   if (state.status === 'upgrade_animation') {
     targetScale *= 2.2; // 升级过场大突破聚焦特写放大 2.2 倍 (Task 4)
   }
+  // 击杀特写 (Kill Cam) 期间额外推进 1.5 倍
+  if (state.killCamUntil !== null && state.killCamUntil > state.logicalClockMs) {
+    targetScale *= 1.5;
+  }
   camera.targetScale = targetScale;
 
   // camera.scale = lerp(camera.scale, camera.targetScale, 0.08)

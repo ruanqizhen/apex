@@ -33,6 +33,7 @@ export function aiSystem(state: WorldState, dt: number) {
 
   state.entities.forEach((entity) => {
     if (!entity.isAlive) return;
+    if (entity.type === EntityType.Gem) return; // 宝石无 AI 行为
 
     // 检查冰冻状态：如果被冰冻，速度归零，并不再进行任何 AI 决策行为
     const isFrozen = entity.frozenUntil !== undefined && entity.frozenUntil !== null && entity.frozenUntil > clock;
@@ -104,6 +105,17 @@ export function aiSystem(state: WorldState, dt: number) {
           if (entity.aiState !== AIState.Flee && distToPlayer < actualPerception) {
             entity.aiState = AIState.Flee;
             entity.targetEntityId = player.id;
+            // Boids 群体逃跑联动：当一条鱼开始逃跑，同群其他鱼也立即逃跑
+            if (entity.flockId) {
+              state.entities.forEach((other) => {
+                if (other.isAlive && other.type === EntityType.Prey && other.flockId === entity.flockId && other.id !== entity.id) {
+                  if (other.aiState !== AIState.Flee) {
+                    other.aiState = AIState.Flee;
+                    other.targetEntityId = player.id;
+                  }
+                }
+              });
+            }
           } else if (entity.aiState === AIState.Flee && distToPlayer > 1.5 * actualPerception) {
             entity.aiState = AIState.Wander;
             entity.targetEntityId = null;
@@ -246,6 +258,34 @@ export function aiSystem(state: WorldState, dt: number) {
       entity.velocity = normalize(toTarget);
       entity.velocity.x *= entity.baseSpeed * 0.6;
       entity.velocity.y *= entity.baseSpeed * 0.6;
+
+      // Boids 鱼群行为：在 Wander 状态下向同群质心聚集并保持间距
+      if (entity.type === EntityType.Prey && entity.flockId) {
+        let cohesionX = 0, cohesionY = 0, separationX = 0, separationY = 0;
+        let flockCount = 0;
+        state.entities.forEach((other) => {
+          if (other.isAlive && other.id !== entity.id && other.flockId === entity.flockId) {
+            cohesionX += other.position.x;
+            cohesionY += other.position.y;
+            flockCount++;
+            // 分离力：太近则推开
+            const sepDx = entity.position.x - other.position.x;
+            const sepDy = entity.position.y - other.position.y;
+            const sepDist = Math.hypot(sepDx, sepDy);
+            if (sepDist < entity.radius * 3 && sepDist > 0.01) {
+              separationX += (sepDx / sepDist) * (1.0 - sepDist / (entity.radius * 3));
+              separationY += (sepDy / sepDist) * (1.0 - sepDist / (entity.radius * 3));
+            }
+          }
+        });
+        if (flockCount > 0) {
+          cohesionX = cohesionX / flockCount - entity.position.x;
+          cohesionY = cohesionY / flockCount - entity.position.y;
+          // 聚集力强度 0.15，分离力强度 0.25
+          entity.velocity.x += cohesionX * 0.003 + separationX * entity.baseSpeed * 0.25;
+          entity.velocity.y += cohesionY * 0.003 + separationY * entity.baseSpeed * 0.25;
+        }
+      }
     } 
     else if (entity.aiState === AIState.Flee) {
       // Prey 反方向逃跑，叠加随机扰动角度 (±30° = ±Math.PI / 6)
@@ -258,9 +298,32 @@ export function aiSystem(state: WorldState, dt: number) {
       const noiseAngle = (Math.random() - 0.5) * (Math.PI / 3); // ±30° 扰动
       const fleeDir = rotateVector(oppositeDir, noiseAngle);
       
+      // Boids 鱼群逃跑聚集：向同群质心偏移，群体转弯
+      let flockOffsetX = 0, flockOffsetY = 0;
+      if (entity.type === EntityType.Prey && entity.flockId) {
+        let cx = 0, cy = 0, cnt = 0;
+        state.entities.forEach((other) => {
+          if (other.isAlive && other.id !== entity.id && other.flockId === entity.flockId) {
+            cx += other.position.x;
+            cy += other.position.y;
+            cnt++;
+          }
+        });
+        if (cnt > 0) {
+          cx /= cnt; cy /= cnt;
+          const toCenterX = cx - entity.position.x;
+          const toCenterY = cy - entity.position.y;
+          const toCenterLen = Math.hypot(toCenterX, toCenterY);
+          if (toCenterLen > 0.1) {
+            flockOffsetX = (toCenterX / toCenterLen) * 0.25;
+            flockOffsetY = (toCenterY / toCenterLen) * 0.25;
+          }
+        }
+      }
+
       entity.velocity = {
-        x: fleeDir.x * entity.baseSpeed,
-        y: fleeDir.y * entity.baseSpeed
+        x: (fleeDir.x + flockOffsetX) * entity.baseSpeed,
+        y: (fleeDir.y + flockOffsetY) * entity.baseSpeed
       };
     } 
     else if (entity.aiState === AIState.Pursue && entity.type === EntityType.Predator) {

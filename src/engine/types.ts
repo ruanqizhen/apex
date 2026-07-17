@@ -9,6 +9,7 @@ export enum EntityType {
   Predator = "predator",
   Player = "player",
   Item = "item",
+  Gem = "gem",
 }
 
 export enum ItemType {
@@ -49,6 +50,9 @@ export interface AIEntity extends BaseEntity {
   chargeTimer?: number;       // 剑鱼冲撞阶段计时器
   chargePhase?: 'normal' | 'charging' | 'stunned'; // 冲撞阶段
   chargeTarget?: Vector2;     // 冲撞目标坐标点
+  flockId?: string;           // 鱼群 ID，同群的 Prey 共享同一个 flockId
+  gemValue?: number;          // 经验宝石承载的质量值
+  ttlUntil?: number;          // 宝石过期时间（逻辑时钟 ms）
 }
 
 export interface MutationInstance {
@@ -100,11 +104,22 @@ export interface Player extends BaseEntity {
 
 export interface ParticleEvent {
   id: string;
-  kind: "eat_burst" | "bubble_trail" | "combo_flash" | "shield_break" | "eaten_prey" | "item_pickup" | "freeze_wave" | "ink_cloud";
+  kind: "eat_burst" | "bubble_trail" | "combo_flash" | "shield_break" | "eaten_prey" | "item_pickup" | "freeze_wave" | "ink_cloud" | "gem_pickup";
   position: Vector2;
   createdAt: number;
   ttlMs: number;
   meta?: Record<string, number>;
+}
+
+export interface OceanCurrent {
+  id: string;
+  position: Vector2;      // 流带中心
+  direction: number;      // 流动方向（弧度）
+  speed: number;          // 流速（世界单位/tick）
+  width: number;          // 流带宽度
+  length: number;         // 流带长度
+  createdAt: number;      // 创建时的逻辑时钟
+  ttlMs: number;          // 存活时长
 }
 
 export interface CameraState {
@@ -137,6 +152,8 @@ export interface WorldState {
   upgradeAnimationTimer: number | null; // 升级动画截止逻辑时钟 (Task 1)
   upgradeAnimationType: 'tadpole_to_fry' | 'fry_to_juv' | 'juv_to_pred' | 'pred_to_levi' | null; // 升级大类 (Task 1)
   upgradeOriginalLevel: number; // 升级前的等级
+  killCamUntil: number | null;     // 击杀特写截止逻辑时钟
+  currents: OceanCurrent[];        // 深海涌流列表
   stats: {
     totalEaten: number;
     maxMassReached: number;

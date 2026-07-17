@@ -260,6 +260,39 @@ export function drawParticles(
       ctx.arc(p.position.x, p.position.y, currentRadius, 0, Math.PI * 2);
       ctx.fill();
     }
+    else if (p.kind === 'gem_pickup') {
+      // 宝石拾取粒子：金色向内收缩的螺旋光点
+      const count = 10;
+      const baseRadius = p.meta?.radius || 15;
+      ctx.fillStyle = `rgba(244, 197, 66, ${alpha})`;
+
+      for (let j = 0; j < count; j++) {
+        const angle = (j / count) * Math.PI * 2 + progress * Math.PI * 3;
+        const dist = baseRadius * (1 - progress); // 向内收缩
+        const px = p.position.x + Math.cos(angle) * dist;
+        const py = p.position.y + Math.sin(angle) * dist;
+        const size = Math.max(0.5, (1 - progress) * 3);
+
+        ctx.beginPath();
+        ctx.arc(px, py, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 中心闪光
+      if (progress < 0.3) {
+        const flashAlpha = (1 - progress / 0.3) * 0.6;
+        const flashGrad = ctx.createRadialGradient(
+          p.position.x, p.position.y, 0,
+          p.position.x, p.position.y, baseRadius * 0.8
+        );
+        flashGrad.addColorStop(0, `rgba(255, 240, 180, ${flashAlpha})`);
+        flashGrad.addColorStop(1, 'rgba(255, 240, 180, 0)');
+        ctx.fillStyle = flashGrad;
+        ctx.beginPath();
+        ctx.arc(p.position.x, p.position.y, baseRadius * 0.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
   }
 
   ctx.restore();

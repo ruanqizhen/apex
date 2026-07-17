@@ -1,6 +1,6 @@
 // src/engine/systems/consumptionSystem.ts
 
-import { WorldState, EntityType, AIEntity, ParticleEvent, ItemType } from '../types';
+import { WorldState, EntityType, AIEntity, ParticleEvent, ItemType, AIState } from '../types';
 import { GAME_CONFIG, getRadiusFromMass } from '../../config/gameConfig';
 import { EntityPool } from '../entityPool';
 import { getSpecies } from '../../render/fishSpecies';
@@ -68,8 +68,8 @@ export function consumptionSystem(
         }
       } else {
         // 稚鱼及以上阶段（常规逻辑）：
-        // 判定是否可被玩家吞下 (比玩家小，或者类型是 plankton / prey / item)
-        if (entity.radius <= player.radius || entity.type === EntityType.Plankton || entity.type === EntityType.Prey || entity.type === EntityType.Item) {
+        // 判定是否可被玩家吞下 (比玩家小，或者类型是 plankton / prey / item / gem)
+        if (entity.type === EntityType.Gem || entity.radius <= player.radius || entity.type === EntityType.Plankton || entity.type === EntityType.Prey || entity.type === EntityType.Item) {
           eatableCandidates.push(entity);
         } 
         // 判定是否对玩家致命 (Predator 且玩家半径小于其 77%)
@@ -105,7 +105,7 @@ export function consumptionSystem(
         } else if (entity.itemType === ItemType.Freeze) {
           // 冰冻除了道具以外的所有 AI 实体 5 秒
           state.entities.forEach((e) => {
-            if (e.isAlive && e.type !== EntityType.Item) {
+            if (e.isAlive && e.type !== EntityType.Item && e.type !== EntityType.Gem) {
               e.frozenUntil = clock + 5000;
             }
           });
@@ -129,6 +129,24 @@ export function consumptionSystem(
           ttlMs: 500,
           meta: {
             colorType: entity.itemType === ItemType.Magnet ? 0 : entity.itemType === ItemType.Freeze ? 1 : 2
+          }
+        });
+      } else if (entity.type === EntityType.Gem) {
+        // 宝石拾取：吸收 gemValue 质量
+        const gemMass = entity.gemValue || 0;
+        player.mass += gemMass;
+        player.radius = getRadiusFromMass(player.mass);
+        if (player.mass > state.stats.maxMassReached) {
+          state.stats.maxMassReached = player.mass;
+        }
+        // 触发金色宝石拾取粒子
+        emitParticle({
+          kind: 'gem_pickup',
+          position: { ...entity.position },
+          ttlMs: 600,
+          meta: {
+            radius: entity.radius * 2,
+            gemValue: gemMass
           }
         });
       } else {
@@ -180,6 +198,41 @@ export function consumptionSystem(
             facing: entity.facing
           }
         });
+
+        // 经验宝石掉落：吃掉 Competitor 或更大的鱼时，在原位生成 Gem
+        const isBigKill = entity.type === EntityType.Competitor ||
+          (entity.type === EntityType.Predator && entity.radius <= player.radius);
+        if (isBigKill && player.evolutionLevel >= 2) {
+          const gemRadius = Math.max(4, entity.radius * 0.3);
+          const gemMassValue = entity.mass * 0.3;
+          const gemEntity = pool.acquireAIEntity();
+          const gemId = `gem_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+          gemEntity.id = gemId;
+          gemEntity.type = EntityType.Gem;
+          gemEntity.position = { ...entity.position };
+          gemEntity.velocity = { x: 0, y: 0 };
+          gemEntity.facing = 0;
+          gemEntity.mass = Math.PI * gemRadius * gemRadius;
+          gemEntity.radius = gemRadius;
+          gemEntity.isAlive = true;
+          gemEntity.aiState = AIState.Idle;
+          gemEntity.perceptionRadius = 0;
+          gemEntity.baseSpeed = 0;
+          gemEntity.wanderTarget = { x: 0, y: 0 };
+          gemEntity.targetEntityId = null;
+          gemEntity.speciesIndex = 0;
+          gemEntity.itemType = undefined;
+          gemEntity.flockId = undefined;
+          gemEntity.gemValue = gemMassValue;
+          gemEntity.ttlUntil = clock + 8000; // 存活 8 秒
+          state.entities.set(gemId, gemEntity);
+          state.spatialHash.insert(gemEntity);
+        }
+
+        // 击杀特写 (Kill Cam)：吃掉 Competitor 及以上体型触发 0.3 秒慢动作
+        if (isBigKill && state.killCamUntil === null) {
+          state.killCamUntil = clock + 300;
+        }
       }
 
       // 从地图与空间哈希中回收

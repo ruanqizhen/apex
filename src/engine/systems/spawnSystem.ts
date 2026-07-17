@@ -6,6 +6,7 @@ import { EntityPool } from '../entityPool';
 import { SPECIES_COUNT_MAP } from '../../render/fishSpecies';
 
 let entityIdCounter = 0;
+let flockIdCounter = 0;
 
 function getRandomInRing(center: Vector2, innerRadius: number, outerRadius: number): Vector2 {
   const angle = Math.random() * Math.PI * 2;
@@ -34,7 +35,9 @@ export function spawnSystem(
   const reclaimDistance = viewportDiagonal * GAME_CONFIG.RECLAIM_DIAGONAL_RATIO;
   state.entities.forEach((entity, id) => {
     const dist = Math.hypot(entity.position.x - player.position.x, entity.position.y - player.position.y);
-    if (dist > reclaimDistance) {
+    // 回收超范围实体 OR 已过期的 Gem
+    const isExpiredGem = entity.type === EntityType.Gem && entity.ttlUntil !== undefined && entity.ttlUntil <= state.logicalClockMs;
+    if (dist > reclaimDistance || isExpiredGem) {
       // 从空间哈希中移出
       state.spatialHash.remove(entity);
       // 归还对象池
@@ -108,12 +111,21 @@ export function spawnSystem(
       }
     }
 
-    // 补充 Prey
+    // 补充 Prey (40% 概率以鱼群方式生成 3~5 条)
     if (preyCount < dynamicMaxPrey) {
       const needed = dynamicMaxPrey - preyCount;
       const batchSize = Math.min(needed, 5);
       for (let i = 0; i < batchSize; i++) {
-        spawnEntity(EntityType.Prey, initialPlayerRadius);
+        // 40% 概率成群生成
+        if (Math.random() < 0.4 && preyCount + 4 <= dynamicMaxPrey) {
+          const flockSize = 3 + Math.floor(Math.random() * 3); // 3~5
+          const fId = `flock_${flockIdCounter++}`;
+          spawnFlockPrey(fId, flockSize);
+          preyCount += flockSize;
+          i += flockSize - 1; // 跳过已生成的数量
+        } else {
+          spawnEntity(EntityType.Prey, initialPlayerRadius);
+        }
       }
     }
 
@@ -284,6 +296,9 @@ export function spawnSystem(
       entity.wanderTarget = { x: 0, y: 0 };
       entity.targetEntityId = null;
       entity.speciesIndex = Math.floor(Math.random() * (SPECIES_COUNT_MAP[type] || 1));
+      entity.flockId = undefined;
+      entity.gemValue = undefined;
+      entity.ttlUntil = undefined;
 
       // 若为道具类型，随机指定具体的道具种类
       if (type === EntityType.Item) {
@@ -296,6 +311,71 @@ export function spawnSystem(
       // 登记进实体库与空间哈希表
       state.entities.set(id, entity);
       state.spatialHash.insert(entity);
+    }
+
+    // 鱼群生成函数：在同一位置附近紧密生成一组 Prey
+    function spawnFlockPrey(flockId: string, count: number) {
+      const initialPlayerRadius = getRadiusFromMass(GAME_CONFIG.INITIAL_MASS);
+      // 确定鱼群的中心位置
+      const centerPos = getRandomInRing(player.position, spawnInner, spawnOuter);
+      // 确定群内鱼的共同品种
+      const sharedSpeciesIndex = Math.floor(Math.random() * (SPECIES_COUNT_MAP[EntityType.Prey] || 1));
+
+      for (let i = 0; i < count; i++) {
+        let radius: number;
+        let perceptionRadius: number;
+        let baseSpeed: number;
+
+        if (player.evolutionLevel <= 1) {
+          const ratio = 1.35 + Math.random() * 0.5;
+          radius = player.radius * ratio;
+          perceptionRadius = radius * 7.5;
+          baseSpeed = GAME_CONFIG.BASE_SPEED * (0.8 + Math.random() * 0.3) * 0.6;
+        } else {
+          const ratio = GAME_CONFIG.PREY_RADIUS_RATIO_MIN + Math.random() * (GAME_CONFIG.PREY_RADIUS_RATIO_MAX - GAME_CONFIG.PREY_RADIUS_RATIO_MIN);
+          radius = player.radius * ratio;
+          perceptionRadius = radius * 7.5;
+          const speedGrowthFactor = Math.pow(radius / initialPlayerRadius, 0.95);
+          baseSpeed = GAME_CONFIG.BASE_SPEED * (0.8 + Math.random() * 0.3) * speedGrowthFactor;
+        }
+
+        // 位置在中心点附近散布（半径 2 倍范围内）
+        const offsetAngle = Math.random() * Math.PI * 2;
+        const offsetDist = Math.random() * radius * 2.5;
+        const pos: Vector2 = {
+          x: centerPos.x + Math.cos(offsetAngle) * offsetDist,
+          y: centerPos.y + Math.sin(offsetAngle) * offsetDist,
+        };
+
+        const entity = pool.acquireAIEntity();
+        const id = `entity_${entityIdCounter++}`;
+        const mass = Math.PI * radius * radius;
+
+        entity.id = id;
+        entity.type = EntityType.Prey;
+        entity.position = pos;
+        entity.velocity = {
+          x: (Math.random() - 0.5) * baseSpeed,
+          y: (Math.random() - 0.5) * baseSpeed,
+        };
+        entity.facing = Math.random() * Math.PI * 2;
+        entity.mass = mass;
+        entity.radius = radius;
+        entity.isAlive = true;
+        entity.aiState = AIState.Wander;
+        entity.perceptionRadius = perceptionRadius;
+        entity.baseSpeed = baseSpeed;
+        entity.wanderTarget = { ...centerPos }; // 初始巡逻目标为群中心
+        entity.targetEntityId = null;
+        entity.speciesIndex = sharedSpeciesIndex; // 同群同品种
+        entity.flockId = flockId;
+        entity.itemType = undefined;
+        entity.gemValue = undefined;
+        entity.ttlUntil = undefined;
+
+        state.entities.set(id, entity);
+        state.spatialHash.insert(entity);
+      }
     }
   }
 }

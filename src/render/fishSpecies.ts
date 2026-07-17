@@ -630,6 +630,7 @@ export const SPECIES_COUNT_MAP: Record<string, number> = {
   [EntityType.Competitor]: COMPETITOR_SPECIES.length,
   [EntityType.Predator]: PREDATOR_SPECIES.length,
   [EntityType.Player]: PLAYER_SPECIES.length,
+  [EntityType.Gem]: 1,
 };
 
 // ── 总品种表 ──

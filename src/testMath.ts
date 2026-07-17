@@ -76,6 +76,8 @@ const createMockState = (): WorldState => {
     upgradeAnimationTimer: null,
     upgradeAnimationType: null,
     upgradeOriginalLevel: 0,
+    killCamUntil: null,
+    currents: [],
     stats: { totalEaten: 0, maxMassReached: 100, survivalMs: 0 }
   };
 };
