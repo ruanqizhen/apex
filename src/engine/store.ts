@@ -215,6 +215,7 @@ export const gameStore = createStore<GameStore>((set, get) => {
               ...state.player,
               mutations,
               evolutionLevel: nextLevel,
+              radius: getRadiusFromMass(getLevelUpThreshold(nextLevel)),
               // 获得无敌保护
               isInvulnerableUntil: state.logicalClockMs + (isMajorUpgrade ? 3500 : 1000)
             }

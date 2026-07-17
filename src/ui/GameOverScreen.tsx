@@ -2,6 +2,7 @@
 
 import { useStore } from 'zustand';
 import { gameStore } from '../engine/store';
+import DeepSeaBackground from './DeepSeaBackground';
 
 export default function GameOverScreen() {
   const stats = useStore(gameStore, (s) => s.stats);
@@ -25,83 +26,98 @@ export default function GameOverScreen() {
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'rgba(2, 7, 18, 0.88)',
-      backdropFilter: 'blur(12px)',
       color: '#fff',
       zIndex: 10,
     }}>
-      <div style={{
-        background: 'rgba(255, 255, 255, 0.03)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        borderRadius: 24,
+      {/* Background showing bubbles and rays */}
+      <DeepSeaBackground />
+
+      <div className="glass-panel pulse-red" style={{
         padding: '50px 60px',
         textAlign: 'center',
-        boxShadow: '0 25px 60px rgba(0,0,0,0.7)',
-        maxWidth: 450,
+        maxWidth: 480,
         width: '90%',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        border: '1.5px solid rgba(224, 92, 92, 0.25)',
       }}>
         <h1 style={{
-          fontSize: 34,
+          fontSize: 36,
           margin: '0 0 10px 0',
           fontWeight: 900,
-          color: '#e05c5c',
-          letterSpacing: '2px',
+          color: '#ef4444',
+          fontFamily: "'Orbitron', 'Outfit', sans-serif",
+          letterSpacing: '4px',
+          textShadow: '0 0 20px rgba(239, 68, 68, 0.4)',
         }}>
           被 吞 噬 终 结
         </h1>
         <p style={{
-          fontSize: 15,
+          fontSize: 14,
           color: '#9ca3af',
-          margin: '0 0 35px 0'
+          margin: '0 0 35px 0',
+          letterSpacing: '1px',
+          fontWeight: 500
         }}>
-          深海处处潜伏着致命的掠食者
+          海洋深处潜伏着致命的掠食者...
         </p>
 
         <div style={{
-          background: 'rgba(255, 255, 255, 0.05)',
-          borderRadius: 16,
-          padding: '25px',
-          marginBottom: 35,
+          background: 'rgba(2, 7, 18, 0.55)',
+          borderRadius: 18,
+          padding: '24px 28px',
+          marginBottom: 40,
           border: '1px solid rgba(255, 255, 255, 0.05)',
           textAlign: 'left'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 15 }}>
-            <span style={{ color: '#9ca3af', fontSize: 14 }}>生存时间:</span>
-            <span style={{ fontWeight: 'bold', fontSize: 18, color: '#f3f4f6' }}>{formatTime(stats.survivalMs)}</span>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            marginBottom: 16,
+            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+            paddingBottom: '10px'
+          }}>
+            <span style={{ color: '#9ca3af', fontSize: 13.5, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              ⏱️ 生存时间
+            </span>
+            <span style={{ fontWeight: 'bold', fontSize: 19, color: '#f3f4f6', fontFamily: 'monospace' }}>
+              {formatTime(stats.survivalMs)}
+            </span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 15 }}>
-            <span style={{ color: '#9ca3af', fontSize: 14 }}>最大质量:</span>
-            <span style={{ fontWeight: 'bold', fontSize: 18, color: '#F4C542' }}>{Math.round(stats.maxMassReached)}</span>
+          
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            marginBottom: 16,
+            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+            paddingBottom: '10px'
+          }}>
+            <span style={{ color: '#9ca3af', fontSize: 13.5, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              ⚖️ 最大质量
+            </span>
+            <span style={{ fontWeight: 'bold', fontSize: 19, color: '#F4C542', fontFamily: "'Outfit', sans-serif" }}>
+              {Math.round(stats.maxMassReached)}
+            </span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: '#9ca3af', fontSize: 14 }}>猎捕数量:</span>
-            <span style={{ fontWeight: 'bold', fontSize: 18, color: '#8FE3B0' }}>{stats.totalEaten}</span>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ color: '#9ca3af', fontSize: 13.5, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              🐟 猎捕数量
+            </span>
+            <span style={{ fontWeight: 'bold', fontSize: 19, color: '#10b981', fontFamily: "'Outfit', sans-serif" }}>
+              {stats.totalEaten}
+            </span>
           </div>
         </div>
 
         <button
           onClick={() => actions.startGame()}
+          className="glow-btn-crimson"
           style={{
-            background: 'linear-gradient(135deg, #e05c5c 0%, #bf4343 100%)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 30,
-            padding: '14px 45px',
-            fontSize: 16,
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            boxShadow: '0 10px 20px rgba(224, 92, 92, 0.25)',
-            transition: 'all 0.2s ease',
-            outline: 'none'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.03)';
-            e.currentTarget.style.boxShadow = '0 12px 25px rgba(224, 92, 92, 0.4)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 10px 20px rgba(224, 92, 92, 0.25)';
+            padding: '15px 50px',
+            fontSize: 17,
+            letterSpacing: '2px',
           }}
         >
           再 来 一 局

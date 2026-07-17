@@ -1,7 +1,7 @@
 // src/engine/systems/consumptionSystem.ts
 
 import { WorldState, EntityType, AIEntity, ParticleEvent, ItemType, AIState } from '../types';
-import { GAME_CONFIG, getRadiusFromMass } from '../../config/gameConfig';
+import { GAME_CONFIG } from '../../config/gameConfig';
 import { EntityPool } from '../entityPool';
 import { getSpecies } from '../../render/fishSpecies';
 
@@ -135,7 +135,6 @@ export function consumptionSystem(
         // 宝石拾取：吸收 gemValue 质量
         const gemMass = entity.gemValue || 0;
         player.mass += gemMass;
-        player.radius = getRadiusFromMass(player.mass);
         if (player.mass > state.stats.maxMassReached) {
           state.stats.maxMassReached = player.mass;
         }
@@ -156,7 +155,6 @@ export function consumptionSystem(
         
         const massGain = entity.mass * efficiency;
         player.mass += massGain;
-        player.radius = getRadiusFromMass(player.mass);
 
         // 更新连击与统计
         eatenCountThisTick++;

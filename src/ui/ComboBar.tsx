@@ -16,32 +16,40 @@ export default function ComboBar() {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      gap: '4px',
+      gap: '6px',
     }}>
       {/* 连击文案 */}
       <div style={{
-        fontSize: '11px',
-        fontWeight: 'bold',
-        letterSpacing: '1px',
-        color: isFrenzy ? '#F4C542' : '#9ca3af',
-        textShadow: isFrenzy ? '0 0 8px rgba(244, 197, 66, 0.8)' : 'none',
+        fontSize: '12px',
+        fontWeight: 900,
+        letterSpacing: '2px',
+        fontFamily: "'Orbitron', 'Outfit', sans-serif",
+        color: isFrenzy ? '#ff9f1a' : '#9ca3af',
+        textShadow: isFrenzy 
+          ? '0 0 12px rgba(255, 159, 26, 0.8), 0 0 4px rgba(255, 159, 26, 0.5)' 
+          : '0 0 4px rgba(255, 255, 255, 0.1)',
         transition: 'all 0.3s ease',
+        transform: isFrenzy ? 'scale(1.05)' : 'scale(1)',
       }}>
-        {isFrenzy ? '🔥 FRENZY MODE 🔥' : `COMBO ×${comboCount}`}
+        {isFrenzy ? '🔥 狂热吞噬 FRENZY 🔥' : `COMBO ×${comboCount}`}
       </div>
       
       {/* 连击槽 */}
       <div style={{
         display: 'flex',
-        gap: '2px',
-        background: 'rgba(2, 7, 18, 0.75)',
-        border: `1px solid ${isFrenzy ? 'rgba(244, 197, 66, 0.5)' : 'rgba(255, 255, 255, 0.12)'}`,
+        gap: '3px',
+        background: 'rgba(2, 7, 18, 0.65)',
+        border: `1.5px solid ${isFrenzy ? 'rgba(255, 159, 26, 0.6)' : 'rgba(255, 255, 255, 0.08)'}`,
         padding: '3px 4px',
-        borderRadius: '6px',
-        boxShadow: isFrenzy ? '0 0 15px rgba(244, 197, 66, 0.3)' : 'none',
+        borderRadius: '8px',
+        boxShadow: isFrenzy 
+          ? '0 0 25px rgba(255, 159, 26, 0.35), inset 0 1px 2px rgba(0,0,0,0.5)' 
+          : '0 4px 10px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(0,0,0,0.5)',
         boxSizing: 'border-box',
-        width: '240px',
-        height: '20px',
+        width: '260px',
+        height: '22px',
+        transition: 'all 0.3s ease',
+        backdropFilter: 'blur(4px)',
       }}>
         {segments.map((_, i) => {
           const active = isFrenzy || i < comboCount;
@@ -51,18 +59,18 @@ export default function ComboBar() {
               key={i}
               style={{
                 flex: 1,
-                borderRadius: '2px',
+                borderRadius: '3px',
                 background: isFrenzy
-                  ? 'linear-gradient(to bottom, #ffea88, #F4C542)'
+                  ? 'linear-gradient(to bottom, #fff275, #ff9f1a, #ff3f3f)'
                   : active
-                    ? 'linear-gradient(to bottom, #7dd3fc, #0284c7)'
-                    : 'rgba(255, 255, 255, 0.08)',
+                    ? 'linear-gradient(to bottom, #38bdf8, #0284c7)'
+                    : 'rgba(255, 255, 255, 0.06)',
                 boxShadow: isFrenzy
-                  ? '0 0 4px rgba(244, 197, 66, 0.8)'
+                  ? '0 0 6px rgba(255, 159, 26, 0.8)'
                   : active
-                    ? '0 0 3px rgba(14, 165, 233, 0.6)'
+                    ? '0 0 4px rgba(14, 165, 233, 0.6)'
                     : 'none',
-                transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
+                transition: 'all 0.15s cubic-bezier(0.25, 0.8, 0.25, 1)',
               }}
             />
           );

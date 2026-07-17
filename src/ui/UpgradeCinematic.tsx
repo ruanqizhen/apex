@@ -79,81 +79,91 @@ export default function UpgradeCinematic() {
       transition: 'opacity 0.1s ease-out',
       fontFamily: 'sans-serif'
     }}>
-      <div style={{
+      <div className="glass-panel pulse-gold" style={{
         textAlign: 'center',
-        padding: '35px 50px',
-        background: 'linear-gradient(180deg, rgba(8, 20, 52, 0.92) 0%, rgba(2, 6, 23, 0.97) 100%)',
-        border: '2px solid rgba(244, 197, 66, 0.7)',
-        borderRadius: '20px',
-        boxShadow: '0 0 45px rgba(244, 197, 66, 0.4)',
+        padding: '40px 55px',
+        background: 'linear-gradient(180deg, rgba(8, 20, 52, 0.8) 0%, rgba(2, 6, 23, 0.9) 100%)',
+        border: '2px solid rgba(244, 197, 66, 0.6)',
+        borderRadius: '24px',
+        boxShadow: '0 0 50px rgba(244, 197, 66, 0.45)',
         maxWidth: '560px',
         width: '90%',
         boxSizing: 'border-box',
-        transform: `scale(${0.9 + 0.1 * Math.sin(progress * Math.PI)})`, // 微弱脉动弹入感
+        transform: `scale(${0.92 + 0.08 * Math.sin(progress * Math.PI)})`, // subtle pulse
         transition: 'transform 0.1s ease-out'
       }}>
         <div style={{
           fontSize: '13px',
           color: '#fbbf24',
-          fontWeight: 'bold',
-          letterSpacing: '4px',
-          marginBottom: '10px',
+          fontWeight: 900,
+          letterSpacing: '5px',
+          marginBottom: '12px',
           textTransform: 'uppercase',
-          opacity: 0.95
+          fontFamily: "'Orbitron', sans-serif",
+          textShadow: '0 0 10px rgba(251, 191, 36, 0.5)'
         }}>
-          ✨ 等阶突破 ✨
+          ✨ 等 阶 突 破 ✨
         </div>
         <h1 style={{
-          fontSize: '28px',
+          fontSize: '30px',
           fontWeight: 900,
-          margin: '0 0 18px 0',
+          margin: '0 0 20px 0',
           background: 'linear-gradient(135deg, #FFFBEB 0%, #fbbf24 50%, #f97316 100%)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
-          textShadow: '0 0 20px rgba(244, 197, 66, 0.25)',
-          letterSpacing: '1.5px'
+          textShadow: '0 0 25px rgba(244, 197, 66, 0.35)',
+          letterSpacing: '1.5px',
+          fontFamily: "'Outfit', sans-serif"
         }}>
           {title}
         </h1>
         <p style={{
           fontSize: '14px',
-          color: '#e5e7eb',
-          margin: '0 0 26px 0',
-          lineHeight: '1.65',
+          color: '#d1d5db',
+          margin: '0 0 30px 0',
+          lineHeight: '1.7',
           fontWeight: 500
         }}>
           {sub}
         </p>
 
         <div style={{
-          background: 'rgba(255, 255, 255, 0.035)',
-          border: '1px solid rgba(255, 255, 255, 0.09)',
-          borderRadius: '10px',
-          padding: '18px 24px',
+          background: 'rgba(2, 7, 18, 0.45)',
+          border: '1px solid rgba(255, 255, 255, 0.06)',
+          borderRadius: '16px',
+          padding: '22px 28px',
           textAlign: 'left'
         }}>
           <div style={{
             fontSize: '12px',
             color: '#a1a1aa',
-            fontWeight: 'bold',
-            marginBottom: '12px',
-            letterSpacing: '1px'
+            fontWeight: 800,
+            marginBottom: '14px',
+            letterSpacing: '1.5px',
+            textTransform: 'uppercase'
           }}>
             已成功突变解锁性状：
           </div>
           <ul style={{
             margin: 0,
-            paddingLeft: '18px',
-            fontSize: '13px',
+            paddingLeft: '16px',
+            fontSize: '13.5px',
             color: '#f4f4f5',
             display: 'flex',
             flexDirection: 'column',
-            gap: '10px',
-            lineHeight: '1.45'
+            gap: '12px',
+            lineHeight: '1.5'
           }}>
             {unlocked.map((item, idx) => (
-              <li key={idx} style={{ listStyleType: 'square', color: '#fbbf24' }}>
-                <span style={{ color: '#f4f4f5' }}>{item}</span>
+              <li key={idx} style={{ listStyleType: 'none', position: 'relative', paddingLeft: '8px' }}>
+                <span style={{ 
+                  color: '#fbbf24', 
+                  position: 'absolute', 
+                  left: '-16px', 
+                  fontWeight: 'bold',
+                  textShadow: '0 0 8px rgba(251, 191, 36, 0.8)' 
+                }}>✓</span>
+                <span style={{ color: '#e5e7eb', fontWeight: 500 }}>{item}</span>
               </li>
             ))}
           </ul>

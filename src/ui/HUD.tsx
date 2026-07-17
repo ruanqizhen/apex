@@ -52,69 +52,102 @@ export default function HUD() {
       top: 0,
       left: 0,
       width: '100%',
-      padding: '20px 30px',
+      padding: '24px 32px',
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'flex-start',
-      pointerEvents: 'none', // 允许鼠标事件穿透到画布
+      pointerEvents: 'none', // Allow mouse events to pass to canvas
       boxSizing: 'border-box',
       zIndex: 5,
-      fontFamily: 'sans-serif'
+      fontFamily: "'Outfit', 'Inter', sans-serif"
     }}>
-      {/* 左侧：等阶和当前质量 */}
+      {/* Left Panel: Level & Mass Dashboard */}
       <div style={{
-        background: 'rgba(2, 7, 18, 0.65)',
+        background: 'rgba(4, 12, 34, 0.55)',
+        backdropFilter: 'blur(10px)',
         border: '1px solid rgba(255, 255, 255, 0.08)',
-        borderRadius: '12px',
-        padding: '12px 18px',
+        borderTop: '2px solid #F4C542',
+        borderRadius: '16px',
+        padding: '14px 20px',
         color: '#fff',
         display: 'flex',
         flexDirection: 'column',
-        gap: '4px',
+        gap: '6px',
         pointerEvents: 'auto',
-        boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+        boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
+        transition: 'all 0.3s ease',
       }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-          <span style={{ fontSize: '12px', color: '#9ca3af' }}>等阶:</span>
-          <span style={{ fontSize: '17px', fontWeight: 'bold', color: '#F4C542' }}>Lvl {player.evolutionLevel}</span>
-          <span style={{ fontSize: '12px', color: '#7dd3fc', marginLeft: '4px' }}>({getTitle(player.evolutionLevel)})</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '15px' }}>🦈</span>
+          <span style={{ fontSize: '12px', color: '#9ca3af', fontWeight: 500 }}>等阶</span>
+          <span style={{ 
+            fontSize: '18px', 
+            fontWeight: 800, 
+            color: '#F4C542',
+            fontFamily: "'Orbitron', sans-serif" 
+          }}>
+            Lvl {player.evolutionLevel}
+          </span>
+          <span style={{ 
+            fontSize: '11px', 
+            color: '#7dd3fc', 
+            background: 'rgba(125, 211, 252, 0.1)', 
+            padding: '2px 6px',
+            borderRadius: '4px',
+            fontWeight: 600
+          }}>
+            {getTitle(player.evolutionLevel)}
+          </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-          <span style={{ fontSize: '12px', color: '#9ca3af' }}>质量:</span>
-          <span style={{ fontSize: '19px', fontWeight: 'bold', color: '#f3f4f6' }}>{Math.round(player.mass)}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '15px' }}>⚖️</span>
+          <span style={{ fontSize: '12px', color: '#9ca3af', fontWeight: 500 }}>质量</span>
+          <span style={{ 
+            fontSize: '20px', 
+            fontWeight: 800, 
+            color: '#f3f4f6',
+            fontFamily: "'Orbitron', sans-serif"
+          }}>
+            {Math.round(player.mass)}
+          </span>
         </div>
       </div>
 
-      {/* 中部：连击状态栏与道具状态 (Task 10/12) */}
+      {/* Center Panel: Combo & Buff/Skill Badges */}
       <div style={{
         pointerEvents: 'auto',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: '10px'
+        gap: '12px'
       }}>
         <ComboBar />
         
         {(magnetTimeLeft > 0 || freezeTimeLeft > 0 || shieldActive || hasInkSkill) && (
           <div style={{
             display: 'flex',
-            gap: '12px',
-            background: 'rgba(2, 7, 18, 0.75)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '20px',
-            padding: '6px 16px',
-            boxShadow: '0 4px 15px rgba(0,0,0,0.4)',
-            backdropFilter: 'blur(4px)',
+            gap: '10px',
+            background: 'rgba(4, 12, 34, 0.6)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: '24px',
+            padding: '8px 20px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(10px)',
             alignItems: 'center'
           }}>
             {shieldActive && (
               <span style={{
                 color: '#fbbf24',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: 'bold',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px'
+                gap: '5px',
+                background: 'rgba(251, 191, 36, 0.12)',
+                border: '1px solid rgba(251, 191, 36, 0.25)',
+                padding: '4px 10px',
+                borderRadius: '12px',
+                boxShadow: '0 0 10px rgba(251, 191, 36, 0.1)'
               }}>
                 🛡️ 护盾激活
               </span>
@@ -122,11 +155,17 @@ export default function HUD() {
             {magnetTimeLeft > 0 && (
               <span style={{
                 color: '#f43f5e',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: 'bold',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px'
+                gap: '5px',
+                background: 'rgba(244, 63, 94, 0.12)',
+                border: '1px solid rgba(244, 63, 94, 0.25)',
+                padding: '4px 10px',
+                borderRadius: '12px',
+                boxShadow: '0 0 10px rgba(244, 63, 94, 0.1)',
+                fontFamily: 'monospace'
               }}>
                 🧲 磁力: {magnetTimeLeft.toFixed(1)}s
               </span>
@@ -134,54 +173,82 @@ export default function HUD() {
             {freezeTimeLeft > 0 && (
               <span style={{
                 color: '#06b6d4',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: 'bold',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px'
+                gap: '5px',
+                background: 'rgba(6, 182, 212, 0.12)',
+                border: '1px solid rgba(6, 182, 212, 0.25)',
+                padding: '4px 10px',
+                borderRadius: '12px',
+                boxShadow: '0 0 10px rgba(6, 182, 212, 0.1)',
+                fontFamily: 'monospace'
               }}>
                 ❄️ 冰冻: {freezeTimeLeft.toFixed(1)}s
               </span>
             )}
             {hasInkSkill && (
               <span style={{
-                color: inkCdLeft > 0 ? '#9ca3af' : '#a855f7',
-                fontSize: '12px',
+                color: inkCdLeft > 0 ? '#9ca3af' : '#c084fc',
+                fontSize: '11.5px',
                 fontWeight: 'bold',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px'
+                gap: '5px',
+                background: inkCdLeft > 0 ? 'rgba(156, 163, 175, 0.1)' : 'rgba(192, 132, 252, 0.12)',
+                border: inkCdLeft > 0 ? '1px solid rgba(156, 163, 175, 0.2)' : '1px solid rgba(192, 132, 252, 0.25)',
+                padding: '4px 10px',
+                borderRadius: '12px',
+                boxShadow: inkCdLeft > 0 ? 'none' : '0 0 10px rgba(192, 132, 252, 0.15)',
+                fontFamily: inkCdLeft > 0 ? 'monospace' : 'inherit'
               }}>
-                🔮 墨汁: {inkCdLeft > 0 ? `${inkCdLeft.toFixed(1)}s` : '就绪 (Q/右键)'}
+                🔮 墨汁: {inkCdLeft > 0 ? `${inkCdLeft.toFixed(1)}s` : <span>就绪 <span className="key-cap" style={{fontSize: '9px', padding: '0 3px', borderBottomWidth: '1px'}}>Q</span></span>}
               </span>
             )}
           </div>
         )}
       </div>
 
-      {/* 右侧：吞噬数与生存时长 */}
+      {/* Right Panel: Survival Time & Stats Dashboard */}
       <div style={{
-        background: 'rgba(2, 7, 18, 0.65)',
+        background: 'rgba(4, 12, 34, 0.55)',
+        backdropFilter: 'blur(10px)',
         border: '1px solid rgba(255, 255, 255, 0.08)',
-        borderRadius: '12px',
-        padding: '12px 18px',
+        borderTop: '2px solid #8FE3B0',
+        borderRadius: '16px',
+        padding: '14px 20px',
         color: '#fff',
         display: 'flex',
         flexDirection: 'column',
-        gap: '4px',
+        gap: '6px',
         pointerEvents: 'auto',
-        boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+        boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
         alignItems: 'flex-end',
       }}>
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <span style={{ fontSize: '12px', color: '#9ca3af' }}>生存时长:</span>
-          <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#f3f4f6', fontFamily: 'monospace' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '12px', color: '#9ca3af', fontWeight: 500 }}>生存时长</span>
+          <span style={{ 
+            fontSize: '16px', 
+            fontWeight: 800, 
+            color: '#f3f4f6', 
+            fontFamily: 'monospace' 
+          }}>
             {formatTime(stats.survivalMs)}
           </span>
+          <span style={{ fontSize: '14px' }}>⏱️</span>
         </div>
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <span style={{ fontSize: '12px', color: '#9ca3af' }}>吞噬数量:</span>
-          <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#8FE3B0' }}>{stats.totalEaten}</span>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '12px', color: '#9ca3af', fontWeight: 500 }}>吞噬数量</span>
+          <span style={{ 
+            fontSize: '18px', 
+            fontWeight: 800, 
+            color: '#8FE3B0',
+            fontFamily: "'Orbitron', sans-serif" 
+          }}>
+            {stats.totalEaten}
+          </span>
+          <span style={{ fontSize: '14px' }}>🐟</span>
         </div>
       </div>
     </div>
