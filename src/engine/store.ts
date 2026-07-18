@@ -14,6 +14,7 @@ import { consumptionSystem } from './systems/consumptionSystem';
 import { comboFrenzySystem } from './systems/comboFrenzySystem';
 import { evolutionSystem } from './systems/evolutionSystem';
 import { currentSystem } from './systems/currentSystem';
+import { SoundManager } from './soundManager';
 
 export type GameStore = WorldState & {
   actions: GameStoreActions;
@@ -80,9 +81,13 @@ export const gameStore = createStore<GameStore>((set, get) => {
     },
     canvasWidth: 1024,
     canvasHeight: 640,
+    muted: false,
 
     actions: {
       startGame: () => {
+        // 播放点击音效并触发 AudioContext 恢复
+        SoundManager.playClick();
+
         // 清空实体和哈希表
         const { entities } = get();
         entities.forEach(entity => globalEntityPool.releaseAIEntity(entity));
@@ -177,6 +182,13 @@ export const gameStore = createStore<GameStore>((set, get) => {
           // 检测大突破升级节点 (Tadpole->2->Fry, Fry->4->Juv, Juv->6->Pred, Pred->8->Leviathan)
           const isMajorUpgrade = nextLevel === 2 || nextLevel === 4 || nextLevel === 6 || nextLevel === 8;
 
+          // 播放升级音效
+          if (isMajorUpgrade) {
+            SoundManager.playLevelUp();
+          } else {
+            SoundManager.playClick();
+          }
+
           if (isMajorUpgrade) {
             // 爆散金黄色全屏冲击波粒子
             get().actions.emitParticle({
@@ -250,6 +262,9 @@ export const gameStore = createStore<GameStore>((set, get) => {
         // 2. 检查技能冷却时间 (10秒 CD)
         if (player.inkCooldownUntil !== null && clock < player.inkCooldownUntil) return;
 
+        // 播放主动技能音效
+        SoundManager.playInkSkill();
+
         // 3. 喷发墨汁：在玩家身后释放
         const angle = player.facing + Math.PI; // 反方向
         const spawnDist = player.radius * 0.8;
@@ -278,6 +293,9 @@ export const gameStore = createStore<GameStore>((set, get) => {
       },
 
       cheatGainMass: () => {
+        // 播放作弊获取 mass 音效
+        SoundManager.playItemPickup();
+
         set((state) => {
           if (state.status !== 'playing') return {};
           const nextThreshold = getLevelUpThreshold(state.player.evolutionLevel + 1);
@@ -305,19 +323,24 @@ export const gameStore = createStore<GameStore>((set, get) => {
         });
       },
 
+      toggleMute: () => {
+        set((state) => {
+          const nextMuted = !state.muted;
+          SoundManager.setMuted(nextMuted);
+          return { muted: nextMuted };
+        });
+      },
+
       onEat: () => {
-        // 音效钩子占位
-        console.log('[AUDIO HOOK] onEat triggered');
+        // 音效由 consumptionSystem.ts 具体类别精确播放，此处仅做占位
       },
 
       onLevelUp: () => {
-        // 音效钩子占位
-        console.log('[AUDIO HOOK] onLevelUp triggered');
+        SoundManager.playItemPickup(); // 弹窗选择性状时的提示音
       },
 
       onGameOver: () => {
-        // 音效钩子占位
-        console.log('[AUDIO HOOK] onGameOver triggered');
+        SoundManager.playGameOver(); // 被吃掉/游戏结束音效
       },
 
       runFixedTick: (dt: number) => {
@@ -349,7 +372,8 @@ export const gameStore = createStore<GameStore>((set, get) => {
               upgradeOriginalLevel: state.upgradeOriginalLevel,
               killCamUntil: state.killCamUntil,
               currents: state.currents,
-              stats: state.stats
+              stats: state.stats,
+              muted: state.muted
             };
             cameraSystem(updatedStateForCamera, state.canvasWidth);
 
@@ -398,6 +422,7 @@ export const gameStore = createStore<GameStore>((set, get) => {
               ...state.stats,
               survivalMs: nextSurvivalMs
             },
+            muted: state.muted,
             actions: state.actions
           };
 
@@ -448,6 +473,11 @@ export const gameStore = createStore<GameStore>((set, get) => {
 
           // 相机居中与缩放
           cameraSystem(updatedState, state.canvasWidth);
+
+          // 更新冲刺气泡声音状态
+          SoundManager.updateDashSound(
+            updatedState.player.isAlive && updatedState.player.isDashing && updatedState.status === 'playing'
+          );
 
           return {
             status: updatedState.status,

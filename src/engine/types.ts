@@ -78,6 +78,7 @@ export interface GameStoreActions {
   runFixedTick: (dt: number) => void;
   setCanvasSize: (width: number, height: number) => void;
   setPaused: (paused: boolean) => void;
+  toggleMute: () => void;
   onEat?: () => void;
   onLevelUp?: () => void;
   onGameOver?: () => void;
@@ -159,6 +160,7 @@ export interface WorldState {
     maxMassReached: number;
     survivalMs: number;
   };
+  muted: boolean;
   actions?: GameStoreActions;      // 方便系统调用事件钩子
 }
 

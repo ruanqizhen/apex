@@ -28,13 +28,13 @@ const r2 = getRadiusFromMass(Math.PI * 4);
 assert(Math.abs(r2 - 2) < 0.0001, `getRadiusFromMass(4 * PI) should be exactly 2 (got ${r2})`);
 
 // 2. 测试升级阈值公式
-// 升级质量阈值逐级递增：T(0)=100, T(1)=145, T(2)=232
+// 升级质量阈值逐级递增：T(0)=100, T(1)=225, T(2)=563
 const t0 = getLevelUpThreshold(0); // 100
-const t1 = getLevelUpThreshold(1); // 145
-const t2 = getLevelUpThreshold(2); // 232
+const t1 = getLevelUpThreshold(1); // 225
+const t2 = getLevelUpThreshold(2); // 563
 assert(t0 === 100, `getLevelUpThreshold(0) should be 100 (got ${t0})`);
-assert(t1 === 145, `getLevelUpThreshold(1) should be 145 (got ${t1})`);
-assert(t2 === 232, `getLevelUpThreshold(2) should be 232 (got ${t2})`);
+assert(t1 === 225, `getLevelUpThreshold(1) should be 225 (got ${t1})`);
+assert(t2 === 563, `getLevelUpThreshold(2) should be 563 (got ${t2})`);
 
 // 3. 测试 Combo 衰减逻辑
 const createMockState = (): WorldState => {
@@ -78,7 +78,8 @@ const createMockState = (): WorldState => {
     upgradeOriginalLevel: 0,
     killCamUntil: null,
     currents: [],
-    stats: { totalEaten: 0, maxMassReached: 100, survivalMs: 0 }
+    stats: { totalEaten: 0, maxMassReached: 100, survivalMs: 0 },
+    muted: false
   };
 };
 

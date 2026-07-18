@@ -2,6 +2,7 @@
 
 import { WorldState, ParticleEvent } from '../types';
 import { GAME_CONFIG } from '../../config/gameConfig';
+import { SoundManager } from '../soundManager';
 
 export function comboFrenzySystem(
   state: WorldState,
@@ -29,6 +30,9 @@ export function comboFrenzySystem(
     const duration = hasFrenzyExtend ? 7000 : GAME_CONFIG.FRENZY_DURATION_MS;
 
     player.frenzyUntil = clock + duration;
+
+    // 播放狂热模式触发音效
+    SoundManager.playFrenzyTrigger();
 
     // 触发连击狂热全屏闪光/光环粒子
     emitParticle({

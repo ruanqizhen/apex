@@ -7,6 +7,7 @@ import DeepSeaBackground from './DeepSeaBackground';
 export default function GameOverScreen() {
   const stats = useStore(gameStore, (s) => s.stats);
   const actions = useStore(gameStore, (s) => s.actions);
+  const muted = useStore(gameStore, (s) => s.muted);
 
   const formatTime = (ms: number) => {
     const totalSecs = Math.floor(ms / 1000);
@@ -122,6 +123,38 @@ export default function GameOverScreen() {
         >
           再 来 一 局
         </button>
+
+        <div style={{ marginTop: '20px' }}>
+          <button
+            onClick={() => actions.toggleMute()}
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '20px',
+              color: '#9ca3af',
+              padding: '6px 18px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
+              e.currentTarget.style.color = '#fff';
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+              e.currentTarget.style.color = '#9ca3af';
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+            }}
+          >
+            {muted ? '🔇 静音' : '🔊 音效: 开'}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { WorldState, EntityType, AIEntity, ParticleEvent, ItemType, AIState } fr
 import { GAME_CONFIG } from '../../config/gameConfig';
 import { EntityPool } from '../entityPool';
 import { getSpecies } from '../../render/fishSpecies';
+import { SoundManager } from '../soundManager';
 
 function parseColorToRgb(colorStr: string): { r: number; g: number; b: number } {
   if (colorStr.startsWith('rgba') || colorStr.startsWith('rgb')) {
@@ -99,6 +100,7 @@ export function consumptionSystem(
       state.actions?.onEat?.();
 
       if (entity.type === EntityType.Item) {
+        SoundManager.playItemPickup();
         // 道具特殊处理：不改变玩家质量，激活对应道具效果
         if (entity.itemType === ItemType.Magnet) {
           player.magnetUntil = clock + 10000; // 磁吸持续 10 秒
@@ -132,6 +134,7 @@ export function consumptionSystem(
           }
         });
       } else if (entity.type === EntityType.Gem) {
+        SoundManager.playItemPickup();
         // 宝石拾取：吸收 gemValue 质量
         const gemMass = entity.gemValue || 0;
         player.mass += gemMass;
@@ -149,11 +152,23 @@ export function consumptionSystem(
           }
         });
       } else {
+        // 播放吞噬音效：浮游生物播放 BitePop，小鱼/竞争者播放 Gulp
+        if (entity.type === EntityType.Plankton) {
+          SoundManager.playBitePlankton();
+        } else {
+          SoundManager.playGulp();
+        }
+
         // 执行普通吞噬质量积累
         const gutStacks = player.mutations.find(m => m.id === 'mut_efficient_gut')?.stacks || 0;
         const efficiency = GAME_CONFIG.EAT_EFFICIENCY * (1.0 + 0.1 * gutStacks);
         
-        const massGain = entity.mass * efficiency;
+        let massGain = entity.mass * efficiency;
+        if (entity.type === EntityType.Competitor) {
+          massGain *= 0.15; // 限制同级竞争者的质量转化，防止升级太快
+        } else if (entity.type === EntityType.Prey) {
+          massGain *= 0.30; // 限制普通猎物小鱼的质量转化，防止升级太快
+        }
         player.mass += massGain;
 
         // 更新连击与统计
@@ -261,6 +276,9 @@ export function consumptionSystem(
       player.shieldActive = false;
       player.isInvulnerableUntil = clock + 1500; // 获得 1.5 秒无敌保护
 
+      // 播放护盾抵御音效
+      SoundManager.playShieldDeflect();
+
       // 击退攻击者并使玩家向反方向弹开
       const dx = player.position.x - predator.position.x;
       const dy = player.position.y - predator.position.y;
@@ -297,6 +315,9 @@ export function consumptionSystem(
         if (finalStacks === 0) {
           player.mutations.splice(shieldIndex, 1);
         }
+
+        // 播放护盾抵御音效
+        SoundManager.playShieldDeflect();
 
         // 获得无敌帧 (1000ms)
         player.isInvulnerableUntil = clock + 1000;

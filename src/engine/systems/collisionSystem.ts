@@ -1,6 +1,7 @@
 // src/engine/systems/collisionSystem.ts
 
 import { WorldState, BaseEntity, EntityType } from '../types';
+import { SoundManager } from '../soundManager';
 
 
 
@@ -66,6 +67,9 @@ export function collisionSystem(state: WorldState) {
     if (isCompetitor || cannotEatEachOther) {
       const prevPos = { ...entity.position };
       resolveElasticCollision(player, entity);
+
+      // 播放弹性反弹/撞击音效
+      SoundManager.playBump();
       
       // 更新空间哈希位置变动
       state.spatialHash.update(entity, prevPos);

@@ -9,6 +9,8 @@ export default function HUD() {
   const stats = useStore(gameStore, (s) => s.stats);
   const entities = useStore(gameStore, (s) => s.entities);
   const logicalClockMs = useStore(gameStore, (s) => s.logicalClockMs);
+  const muted = useStore(gameStore, (s) => s.muted);
+  const actions = useStore(gameStore, (s) => s.actions);
 
   const getTitle = (level: number) => {
     if (level === 0) return '浮游细胞';
@@ -249,6 +251,44 @@ export default function HUD() {
             {stats.totalEaten}
           </span>
           <span style={{ fontSize: '14px' }}>🐟</span>
+        </div>
+        
+        <div style={{ 
+          display: 'flex', 
+          width: '100%', 
+          justifyContent: 'flex-end',
+          marginTop: '6px',
+          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+          paddingTop: '8px'
+        }}>
+          <button
+            onClick={() => actions.toggleMute()}
+            style={{
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: '6px',
+              color: '#9ca3af',
+              padding: '2px 8px',
+              cursor: 'pointer',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              transition: 'all 0.2s',
+              pointerEvents: 'auto'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
+              e.currentTarget.style.color = '#fff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+              e.currentTarget.style.color = '#9ca3af';
+            }}
+          >
+            {muted ? '🔇 静音' : '🔊 音效: 开'}
+          </button>
         </div>
       </div>
     </div>
