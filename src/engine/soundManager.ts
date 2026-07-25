@@ -166,13 +166,13 @@ class SoundManagerClass {
       try {
         waveSource.start(0);
         this.bgmLfo.start(0);
-      } catch (e) {}
+      } catch { /* intentional: AudioContext may already be closed */ }
     }
 
     try {
       this.oscillatorLow1.start(0);
       this.oscillatorLow2.start(0);
-    } catch (e) {}
+    } catch { /* intentional: AudioContext may already be closed */ }
   }
 
   // --- Sound Effects Synthesis ---

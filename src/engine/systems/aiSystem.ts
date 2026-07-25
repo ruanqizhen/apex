@@ -1,25 +1,7 @@
 // src/engine/systems/aiSystem.ts
 
-import { WorldState, AIState, EntityType, Vector2 } from '../types';
-
-function getDistance(v1: Vector2, v2: Vector2): number {
-  return Math.hypot(v2.x - v1.x, v2.y - v1.y);
-}
-
-function normalize(v: Vector2): Vector2 {
-  const len = Math.hypot(v.x, v.y);
-  return len > 0.0001 ? { x: v.x / len, y: v.y / len } : { x: 0, y: 0 };
-}
-
-// 旋转向量
-function rotateVector(v: Vector2, radians: number): Vector2 {
-  const cos = Math.cos(radians);
-  const sin = Math.sin(radians);
-  return {
-    x: v.x * cos - v.y * sin,
-    y: v.x * sin + v.y * cos
-  };
-}
+import { WorldState, AIState, EntityType } from '../types';
+import { getDistance, normalize, rotateVector } from '../math';
 
 export function aiSystem(state: WorldState, dt: number) {
   const player = state.player;
@@ -31,33 +13,46 @@ export function aiSystem(state: WorldState, dt: number) {
   // 顶级掠食者对玩家的感知范围每层 -15%，乘算
   const predatorPerceptionMultiplier = Math.pow(0.85, perceptionStacks);
 
+  // 预计算 ink_cloud 列表，避免 O(n*m) 全扫
+  const inkClouds: { x: number; y: number; radius: number }[] = [];
+  for (let i = 0; i < state.particles.length; i++) {
+    const p = state.particles[i];
+    if (p.kind === 'ink_cloud') {
+      inkClouds.push({ x: p.position.x, y: p.position.y, radius: p.meta?.radius || 120 });
+    }
+  }
+
+  // 预构建 flock 索引，避免 Boids O(n²) 全扫
+  const flockIndex = new Map<string, typeof state.entities extends Map<any, infer V> ? V[] : never>();
+  state.entities.forEach((entity) => {
+    if (!entity.isAlive) return;
+    if (entity.type !== EntityType.Prey || !entity.flockId) return;
+    if (!flockIndex.has(entity.flockId)) flockIndex.set(entity.flockId, [] as any);
+    (flockIndex.get(entity.flockId) as any).push(entity);
+  });
+
+  const isInAnyInkCloud = (x: number, y: number): boolean => {
+    for (const ink of inkClouds) {
+      const dx = x - ink.x;
+      const dy = y - ink.y;
+      if (Math.hypot(dx, dy) < ink.radius) return true;
+    }
+    return false;
+  };
+
   state.entities.forEach((entity) => {
     if (!entity.isAlive) return;
     if (entity.type === EntityType.Gem) return; // 宝石无 AI 行为
 
-    // 检查冰冻状态：如果被冰冻，速度归零，并不再进行任何 AI 决策行为
+    // 检查冰冻状态
     const isFrozen = entity.frozenUntil !== undefined && entity.frozenUntil !== null && entity.frozenUntil > clock;
     if (isFrozen) {
       entity.velocity = { x: 0, y: 0 };
       return;
     }
 
-    // 检查墨汁致盲：如果在墨汁里，且是掠食者，则失去目标退回巡游状态 (Task 5)
-    let isInInk = false;
-    for (let i = 0; i < state.particles.length; i++) {
-      const p = state.particles[i];
-      if (p.kind === 'ink_cloud') {
-        const dx = entity.position.x - p.position.x;
-        const dy = entity.position.y - p.position.y;
-        const dist = Math.hypot(dx, dy);
-        const inkRadius = p.meta?.radius || 120;
-        if (dist < inkRadius) {
-          isInInk = true;
-          break;
-        }
-      }
-    }
-
+    // 检查墨汁致盲：掠食者在墨汁中失去目标
+    const isInInk = inkClouds.length > 0 && isInAnyInkCloud(entity.position.x, entity.position.y);
     if (isInInk && entity.type === EntityType.Predator) {
       if (entity.aiState === AIState.Pursue || entity.aiState === AIState.Attack) {
         entity.aiState = AIState.Wander;
@@ -67,15 +62,12 @@ export function aiSystem(state: WorldState, dt: number) {
 
     // 1. 浮游生物 (Plankton)
     if (entity.type === EntityType.Plankton) {
-      // 每 500ms 产生一次漂移 (在固定步长中检查是否越过 500ms 边界)
       const prevClock = clock - dt;
       const prevInterval = Math.floor(prevClock / 500);
       const currInterval = Math.floor(clock / 500);
-      
-      if (currInterval > prevInterval || entity.velocity.x === 0 && entity.velocity.y === 0) {
-        // 随机角度漂移，幅度 ±5 世界单位 (这里我们生成一个小位移速度，每 tick 漂移一点)
+
+      if (currInterval > prevInterval || (entity.velocity.x === 0 && entity.velocity.y === 0)) {
         const angle = Math.random() * Math.PI * 2;
-        // 漂移速度 = 5单位 / 500ms = 0.01单位/ms = 0.6单位/tick
         const driftSpeed = 0.4 + Math.random() * 0.4;
         entity.velocity = {
           x: Math.cos(angle) * driftSpeed,
@@ -85,7 +77,7 @@ export function aiSystem(state: WorldState, dt: number) {
       return;
     }
 
-    // 2. 其他 AI 生物 (Prey, Competitor, Predator)
+    // 2. 其他 AI 生物
     const distToPlayer = isPlayerAlive ? getDistance(entity.position, player.position) : Infinity;
 
     // 根据实体类型计算实际感知范围
@@ -98,49 +90,47 @@ export function aiSystem(state: WorldState, dt: number) {
     if (isPlayerAlive) {
       if (entity.type === EntityType.Prey) {
         if (player.evolutionLevel <= 1) {
-          // 孢子小蝌蚪阶段：小鱼是致命的，但不主动追击也不逃跑，保持 Wander 巡游
           entity.aiState = AIState.Wander;
           entity.targetEntityId = null;
         } else {
           if (entity.aiState !== AIState.Flee && distToPlayer < actualPerception) {
             entity.aiState = AIState.Flee;
             entity.targetEntityId = player.id;
-            // Boids 群体逃跑联动：当一条鱼开始逃跑，同群其他鱼也立即逃跑
+            // Boids 群体逃跑联动
             if (entity.flockId) {
-              state.entities.forEach((other) => {
-                if (other.isAlive && other.type === EntityType.Prey && other.flockId === entity.flockId && other.id !== entity.id) {
-                  if (other.aiState !== AIState.Flee) {
+              const flockMates = flockIndex.get(entity.flockId);
+              if (flockMates) {
+                for (const other of flockMates as any[]) {
+                  if (other.id !== entity.id && other.isAlive && other.aiState !== AIState.Flee) {
                     other.aiState = AIState.Flee;
                     other.targetEntityId = player.id;
                   }
                 }
-              });
+              }
             }
           } else if (entity.aiState === AIState.Flee && distToPlayer > 1.5 * actualPerception) {
             entity.aiState = AIState.Wander;
             entity.targetEntityId = null;
           }
         }
-      } 
+      }
       else if (entity.type === EntityType.Competitor) {
-        // 竞争者保持中立 Wander
         entity.aiState = AIState.Wander;
         entity.targetEntityId = null;
-      } 
+      }
       else if (entity.type === EntityType.Predator) {
         if (player.evolutionLevel <= 1) {
-          // 孢子小蝌蚪阶段：巨型掠食者无法察觉微观的孢子，不主动追击，保持 Wander
           entity.aiState = AIState.Wander;
           entity.targetEntityId = null;
         } else {
-          const attackRange = entity.radius + player.radius * 1.5; // 设攻击距离为接近身体
-          
+          const attackRange = entity.radius + player.radius * 1.5;
+
           if (entity.aiState === AIState.Idle || entity.aiState === AIState.Wander) {
             if (distToPlayer < actualPerception) {
               entity.aiState = AIState.Pursue;
               entity.targetEntityId = player.id;
             }
-          } 
+          }
           else if (entity.aiState === AIState.Pursue) {
             if (distToPlayer < attackRange) {
               entity.aiState = AIState.Attack;
@@ -148,7 +138,7 @@ export function aiSystem(state: WorldState, dt: number) {
               entity.aiState = AIState.Wander;
               entity.targetEntityId = null;
             }
-          } 
+          }
           else if (entity.aiState === AIState.Attack) {
             if (distToPlayer >= attackRange && distToPlayer < 2.0 * actualPerception) {
               entity.aiState = AIState.Pursue;
@@ -160,65 +150,57 @@ export function aiSystem(state: WorldState, dt: number) {
         }
       }
     } else {
-      // 玩家死亡时，所有人退回 Wander
       entity.aiState = AIState.Wander;
       entity.targetEntityId = null;
     }
 
     // 4. 根据当前状态执行行为 (计算 velocity)
     if (entity.type === EntityType.Predator && entity.speciesIndex === 4) {
-      // 冲撞剑鱼特殊行为覆盖 (Task 5)
       if (!entity.chargePhase) {
         entity.chargePhase = 'normal';
-        entity.chargeTimer = clock + 2000; // 首次相遇前 2 秒内不冲锋
+        entity.chargeTimer = clock + 2000;
       }
 
       if (entity.chargePhase === 'charging') {
         if (clock >= (entity.chargeTimer ?? 0)) {
-          // 冲刺时间到，进入眩晕脱力状态 1.5 秒
           entity.chargePhase = 'stunned';
           entity.chargeTimer = clock + 1500;
         } else {
-          // 笔直冲向锁定的目标位置
           const toTarget = {
             x: entity.chargeTarget!.x - entity.position.x,
             y: entity.chargeTarget!.y - entity.position.y
           };
           const distToTarget = Math.hypot(toTarget.x, toTarget.y);
           const dir = distToTarget > 0.01 ? { x: toTarget.x / distToTarget, y: toTarget.y / distToTarget } : { x: 1, y: 0 };
-          
+
           entity.velocity = {
             x: dir.x * entity.baseSpeed * 3.5,
             y: dir.y * entity.baseSpeed * 3.5
           };
-          
-          // 极速冲刺时强行更新朝向
+
           entity.facing = Math.atan2(dir.y, dir.x);
-          return; // 跳过后续通用 AI 运动速度更新
+          return;
         }
       }
 
       if (entity.chargePhase === 'stunned') {
         if (clock >= (entity.chargeTimer ?? 0)) {
-          // 眩晕结束，恢复正常游动，并设置 4 秒技能冷却
           entity.chargePhase = 'normal';
           entity.chargeTimer = clock + 4000;
         } else {
-          // 眩晕脱力：沿原朝向极其慢地滑行
           entity.velocity = {
             x: Math.cos(entity.facing) * entity.baseSpeed * 0.15,
             y: Math.sin(entity.facing) * entity.baseSpeed * 0.15
           };
-          return; // 跳过后续通用 AI 运动速度更新
+          return;
         }
       }
 
-      // 如果在 normal 状态，CD 到了，且正在追击/攻击玩家，则锁定制导发起冲刺
       if (entity.chargePhase === 'normal' && (entity.aiState === AIState.Pursue || entity.aiState === AIState.Attack)) {
         if (clock >= (entity.chargeTimer ?? 0) && distToPlayer < actualPerception) {
           entity.chargePhase = 'charging';
-          entity.chargeTimer = clock + 1000; // 冲锋持续 1.0 秒
-          entity.chargeTarget = { ...player.position }; // 锁定当前玩家坐标
+          entity.chargeTimer = clock + 1000;
+          entity.chargeTarget = { ...player.position };
 
           const toTarget = {
             x: entity.chargeTarget.x - entity.position.x,
@@ -226,22 +208,20 @@ export function aiSystem(state: WorldState, dt: number) {
           };
           const distToTarget = Math.hypot(toTarget.x, toTarget.y);
           const dir = distToTarget > 0.1 ? { x: toTarget.x / distToTarget, y: toTarget.y / distToTarget } : { x: 1, y: 0 };
-          
+
           entity.facing = Math.atan2(dir.y, dir.x);
           entity.velocity = {
             x: dir.x * entity.baseSpeed * 3.5,
             y: dir.y * entity.baseSpeed * 3.5
           };
-          return; // 跳过后续通用 AI 逻辑
+          return;
         }
       }
     }
 
     if (entity.aiState === AIState.Wander || entity.aiState === AIState.Idle) {
-      // 检查是否到达 Wander 目标，或者目标不存在
       const distToTarget = getDistance(entity.position, entity.wanderTarget);
-      if (distToTarget < 30 || entity.wanderTarget.x === 0 && entity.wanderTarget.y === 0) {
-        // 随机选择 400 到 800 范围内的点作为新巡逻点
+      if (distToTarget < 30 || (entity.wanderTarget.x === 0 && entity.wanderTarget.y === 0)) {
         const angle = Math.random() * Math.PI * 2;
         const dist = 300 + Math.random() * 400;
         entity.wanderTarget = {
@@ -250,7 +230,6 @@ export function aiSystem(state: WorldState, dt: number) {
         };
       }
 
-      // 朝向 Wander 目标巡游 (巡游速度为 baseSpeed 的 60%)
       const toTarget = {
         x: entity.wanderTarget.x - entity.position.x,
         y: entity.wanderTarget.y - entity.position.y
@@ -259,16 +238,17 @@ export function aiSystem(state: WorldState, dt: number) {
       entity.velocity.x *= entity.baseSpeed * 0.6;
       entity.velocity.y *= entity.baseSpeed * 0.6;
 
-      // Boids 鱼群行为：在 Wander 状态下向同群质心聚集并保持间距
+      // Boids 鱼群行为：利用 flockIndex 避免 O(n²)
       if (entity.type === EntityType.Prey && entity.flockId) {
-        let cohesionX = 0, cohesionY = 0, separationX = 0, separationY = 0;
-        let flockCount = 0;
-        state.entities.forEach((other) => {
-          if (other.isAlive && other.id !== entity.id && other.flockId === entity.flockId) {
+        const flockMates = flockIndex.get(entity.flockId) as any[] | undefined;
+        if (flockMates && flockMates.length > 1) {
+          let cohesionX = 0, cohesionY = 0, separationX = 0, separationY = 0;
+          let flockCount = 0;
+          for (const other of flockMates) {
+            if (other.id === entity.id || !other.isAlive) continue;
             cohesionX += other.position.x;
             cohesionY += other.position.y;
             flockCount++;
-            // 分离力：太近则推开
             const sepDx = entity.position.x - other.position.x;
             const sepDy = entity.position.y - other.position.y;
             const sepDist = Math.hypot(sepDx, sepDy);
@@ -277,46 +257,44 @@ export function aiSystem(state: WorldState, dt: number) {
               separationY += (sepDy / sepDist) * (1.0 - sepDist / (entity.radius * 3));
             }
           }
-        });
-        if (flockCount > 0) {
-          cohesionX = cohesionX / flockCount - entity.position.x;
-          cohesionY = cohesionY / flockCount - entity.position.y;
-          // 聚集力强度 0.15，分离力强度 0.25
-          entity.velocity.x += cohesionX * 0.003 + separationX * entity.baseSpeed * 0.25;
-          entity.velocity.y += cohesionY * 0.003 + separationY * entity.baseSpeed * 0.25;
+          if (flockCount > 0) {
+            cohesionX = cohesionX / flockCount - entity.position.x;
+            cohesionY = cohesionY / flockCount - entity.position.y;
+            entity.velocity.x += cohesionX * 0.003 + separationX * entity.baseSpeed * 0.25;
+            entity.velocity.y += cohesionY * 0.003 + separationY * entity.baseSpeed * 0.25;
+          }
         }
       }
-    } 
+    }
     else if (entity.aiState === AIState.Flee) {
-      // Prey 反方向逃跑，叠加随机扰动角度 (±30° = ±Math.PI / 6)
       const oppositeDir = normalize({
         x: entity.position.x - player.position.x,
         y: entity.position.y - player.position.y
       });
-      
-      // 每隔 20 帧稍微调整一下扰动方向，避免每 tick 抖动过大
-      const noiseAngle = (Math.random() - 0.5) * (Math.PI / 3); // ±30° 扰动
+
+      const noiseAngle = (Math.random() - 0.5) * (Math.PI / 3);
       const fleeDir = rotateVector(oppositeDir, noiseAngle);
-      
-      // Boids 鱼群逃跑聚集：向同群质心偏移，群体转弯
+
       let flockOffsetX = 0, flockOffsetY = 0;
       if (entity.type === EntityType.Prey && entity.flockId) {
-        let cx = 0, cy = 0, cnt = 0;
-        state.entities.forEach((other) => {
-          if (other.isAlive && other.id !== entity.id && other.flockId === entity.flockId) {
+        const flockMates = flockIndex.get(entity.flockId) as any[] | undefined;
+        if (flockMates && flockMates.length > 1) {
+          let cx = 0, cy = 0, cnt = 0;
+          for (const other of flockMates) {
+            if (other.id === entity.id || !other.isAlive) continue;
             cx += other.position.x;
             cy += other.position.y;
             cnt++;
           }
-        });
-        if (cnt > 0) {
-          cx /= cnt; cy /= cnt;
-          const toCenterX = cx - entity.position.x;
-          const toCenterY = cy - entity.position.y;
-          const toCenterLen = Math.hypot(toCenterX, toCenterY);
-          if (toCenterLen > 0.1) {
-            flockOffsetX = (toCenterX / toCenterLen) * 0.25;
-            flockOffsetY = (toCenterY / toCenterLen) * 0.25;
+          if (cnt > 0) {
+            cx /= cnt; cy /= cnt;
+            const toCenterX = cx - entity.position.x;
+            const toCenterY = cy - entity.position.y;
+            const toCenterLen = Math.hypot(toCenterX, toCenterY);
+            if (toCenterLen > 0.1) {
+              flockOffsetX = (toCenterX / toCenterLen) * 0.25;
+              flockOffsetY = (toCenterY / toCenterLen) * 0.25;
+            }
           }
         }
       }
@@ -325,13 +303,11 @@ export function aiSystem(state: WorldState, dt: number) {
         x: (fleeDir.x + flockOffsetX) * entity.baseSpeed,
         y: (fleeDir.y + flockOffsetY) * entity.baseSpeed
       };
-    } 
+    }
     else if (entity.aiState === AIState.Pursue && entity.type === EntityType.Predator) {
-      // Predator 拦截算法：
-      // interceptPoint = player.position + player.velocity * (distanceToPlayer / predator.baseSpeed)
       const speed = entity.baseSpeed;
       const interceptTime = distToPlayer / Math.max(0.1, speed);
-      
+
       const interceptPoint = {
         x: player.position.x + player.velocity.x * interceptTime,
         y: player.position.y + player.velocity.y * interceptTime
@@ -345,15 +321,14 @@ export function aiSystem(state: WorldState, dt: number) {
       entity.velocity = normalize(toIntercept);
       entity.velocity.x *= speed;
       entity.velocity.y *= speed;
-    } 
+    }
     else if (entity.aiState === AIState.Attack) {
-      // 攻击状态：全速扑向玩家
       const toPlayer = {
         x: player.position.x - entity.position.x,
         y: player.position.y - entity.position.y
       };
       entity.velocity = normalize(toPlayer);
-      entity.velocity.x *= entity.baseSpeed * 1.2; // 攻击时微加速
+      entity.velocity.x *= entity.baseSpeed * 1.2;
       entity.velocity.y *= entity.baseSpeed * 1.2;
     }
   });
