@@ -1,4 +1,4 @@
-﻿import { WorldState, EntityType, AIState, Vector2, ItemType } from '../types';
+import { WorldState, EntityType, AIState, Vector2, ItemType } from '../types';
 import { GAME_CONFIG, getRadiusFromMass } from '../../config/gameConfig';
 import { EntityPool } from '../entityPool';
 import { SPECIES_COUNT_MAP } from '../../render/fishSpecies';
@@ -13,8 +13,6 @@ interface TypeCounts {
   predator: number;
   item: number;
 }
-let cachedCounts: TypeCounts = { plankton: 0, prey: 0, competitor: 0, predator: 0, item: 0 };
-let countsValid = false;
 
 function getRandomInRing(center: Vector2, innerRadius: number, outerRadius: number): Vector2 {
   const angle = Math.random() * Math.PI * 2;
@@ -104,7 +102,6 @@ export function spawnSystem(
   const viewportDiagonal = screenDiagonal / state.camera.scale;
 
   const reclaimDistance = viewportDiagonal * GAME_CONFIG.RECLAIM_DIAGONAL_RATIO;
-  let needsRecount = false;
   state.entities.forEach((entity, id) => {
     const dist = Math.hypot(entity.position.x - player.position.x, entity.position.y - player.position.y);
     const isExpiredGem = entity.type === EntityType.Gem && entity.ttlUntil !== undefined && entity.ttlUntil <= state.logicalClockMs;
@@ -112,21 +109,14 @@ export function spawnSystem(
       state.spatialHash.remove(entity);
       pool.releaseAIEntity(entity);
       state.entities.delete(id);
-      needsRecount = true;
     }
   });
-  if (needsRecount) countsValid = false;
 
   const checkInterval = 300;
   const prevClock = state.logicalClockMs - dt;
   const currInterval = Math.floor(state.logicalClockMs / checkInterval);
   const prevInterval = Math.floor(prevClock / checkInterval);
   if (currInterval <= prevInterval) return;
-
-  if (!countsValid) {
-    cachedCounts = computeCounts(state);
-    countsValid = true;
-  }
 
   const spawnInner = viewportDiagonal * GAME_CONFIG.SPAWN_INNER_DIAGONAL_RATIO;
   const spawnOuter = viewportDiagonal * GAME_CONFIG.SPAWN_OUTER_DIAGONAL_RATIO;
@@ -241,7 +231,7 @@ export function spawnSystem(
   };
 
   // --- counting + spawn orchestration ---
-  let { plankton: planktonCount, prey: preyCount, competitor: competitorCount, predator: predatorCount, item: itemCount } = cachedCounts;
+  let { plankton: planktonCount, prey: preyCount, competitor: competitorCount, predator: predatorCount, item: itemCount } = computeCounts(state);
 
   if (planktonCount < dynamicMaxPlankton) {
     const needed = dynamicMaxPlankton - planktonCount;
@@ -286,6 +276,4 @@ export function spawnSystem(
       if (trySpawnSingle(EntityType.Item)) itemCount++;
     }
   }
-
-  cachedCounts = { plankton: planktonCount, prey: preyCount, competitor: competitorCount, predator: predatorCount, item: itemCount };
 }

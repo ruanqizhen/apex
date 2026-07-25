@@ -92,8 +92,10 @@ export function currentSystem(
     state.entities.forEach((entity) => {
       if (!entity.isAlive) return;
       if (isInsideCurrent(entity.position, current)) {
+        const prevPos = { ...entity.position };
         entity.position.x += flowVx * strength;
         entity.position.y += flowVy * strength;
+        state.spatialHash.update(entity, prevPos);
       }
     });
   }

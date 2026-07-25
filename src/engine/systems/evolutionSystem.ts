@@ -36,7 +36,7 @@ export function evolutionSystem(state: WorldState) {
 
       for (let i = 0; i < poolToDraw.length; i++) {
         rand -= poolToDraw[i].weight;
-        if (rand <= 0) {
+        if (rand <= 0 || i === poolToDraw.length - 1) {
           selectedChoices.push(poolToDraw[i]);
           // 从候选池中删除，避免重复抽到
           poolToDraw.splice(i, 1);

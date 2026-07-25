@@ -97,19 +97,8 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
 
   // ── 标准鱼体渲染管线 ──
   const aiEntity = entity as AIEntity;
-  const isAiFrozen =
-    type !== EntityType.Player && aiEntity.frozenUntil !== null && aiEntity.frozenUntil! > logicalClockMs;
-
-  let isPlayerFrozen = false;
-  if (isPlayer) {
-    for (const ent of state.entities.values()) {
-      if (ent.frozenUntil && ent.frozenUntil > logicalClockMs) {
-        isPlayerFrozen = true;
-        break;
-      }
-    }
-  }
-  const isEntityFrozen = isAiFrozen || isPlayerFrozen;
+  const isEntityFrozen =
+    type !== EntityType.Player && aiEntity.frozenUntil !== null && aiEntity.frozenUntil !== undefined && aiEntity.frozenUntil > logicalClockMs;
   const isStunned = type !== EntityType.Player && aiEntity.chargePhase === 'stunned';
 
   const isFrenzy = isPlayer && player!.frenzyUntil !== null && player!.frenzyUntil > logicalClockMs;
@@ -179,7 +168,7 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
   if (type === EntityType.Predator) {
     drawPredatorDecor(ctx, species, bodyLen, bodyHeight, radius, speciesIndex, logicalClockMs);
   }
-  if (isAiFrozen) {
+  if (isEntityFrozen) {
     drawFreezeOverlay(ctx, bodyLen, bodyHeight, radius, bodyPath);
   }
   if (isStunned) {
