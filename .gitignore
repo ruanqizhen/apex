@@ -11,11 +11,10 @@ node_modules
 dist
 dist-ssr
 *.local
-package-lock.json
 
 # Editor directories and files
 .env
-.claude/*
+.claude/
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -25,4 +24,3 @@ package-lock.json
 *.njsproj
 *.sln
 *.sw?
-supabase/.temp/*
