@@ -142,166 +142,185 @@ export default function EvolutionCardModal() {
   if (!choices || choices.length === 0) return null;
 
   return (
-    <div style={{
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: '#fff',
-      zIndex: 15,
-      fontFamily: "'Outfit', 'Inter', sans-serif",
-    }}>
+    <div
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#fff',
+        zIndex: 15,
+        fontFamily: "'Outfit', 'Inter', sans-serif",
+        padding: 'max(12px, var(--sat)) max(12px, var(--sar)) max(12px, var(--sab)) max(12px, var(--sal))',
+        boxSizing: 'border-box',
+        overflowY: 'auto',
+      }}
+    >
       {/* Background showing bubbles and rays */}
       <DeepSeaBackground />
 
-      <h2 style={{
-        fontSize: 32,
-        margin: '0 0 10px 0',
-        fontWeight: 900,
-        background: 'linear-gradient(135deg, #F4C542 0%, #ff8c00 100%)',
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-        letterSpacing: '3px',
-        textAlign: 'center',
-        fontFamily: "'Orbitron', sans-serif"
-      }}>
-        基 因 突 变 进 化
-      </h2>
-      
-      <p style={{
-        fontSize: 14.5,
-        color: '#9ca3af',
-        margin: '0 0 45px 0',
-        letterSpacing: '1px',
-        textAlign: 'center',
-        fontWeight: 500
-      }}>
-        检测到生命特征突破，请选择一项突变性状以继续：
-      </p>
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '960px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          maxHeight: '94vh',
+          overflowY: 'auto',
+          padding: '10px 4px',
+          boxSizing: 'border-box',
+        }}
+      >
+        <h2
+          style={{
+            fontSize: 'clamp(22px, 5.5vw, 32px)',
+            margin: '0 0 6px 0',
+            fontWeight: 900,
+            background: 'linear-gradient(135deg, #F4C542 0%, #ff8c00 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            letterSpacing: '2px',
+            textAlign: 'center',
+            fontFamily: "'Orbitron', sans-serif",
+          }}
+        >
+          基 因 突 变 进 化
+        </h2>
 
-      <div style={{
-        display: 'flex',
-        gap: '26px',
-        justifyContent: 'center',
-        flexWrap: 'wrap',
-        maxWidth: '920px',
-        width: '95%',
-      }}>
-        {choices.map((card) => {
-          const theme = getMutationTheme(card.id);
-          
-          return (
-            <div
-              key={card.id}
-              onClick={() => actions.applyMutation(card.id)}
-              className="glass-panel"
-              style={{
-                flex: '1 1 240px',
-                maxWidth: '280px',
-                background: 'rgba(4, 12, 34, 0.5)',
-                border: '1.5px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '24px',
-                padding: '35px 24px',
-                textAlign: 'center',
-                cursor: 'pointer',
-                boxShadow: '0 20px 45px rgba(0, 0, 0, 0.6)',
-                transition: 'all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                boxSizing: 'border-box',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-10px) scale(1.03)';
-                e.currentTarget.style.borderColor = theme.color;
-                e.currentTarget.style.boxShadow = `0 25px 50px ${theme.glow}`;
-                e.currentTarget.style.background = 'rgba(4, 12, 34, 0.65)';
-                const iconBg = e.currentTarget.querySelector('.icon-bg') as HTMLElement;
-                if (iconBg) {
-                  iconBg.style.transform = 'scale(1.1) rotate(5deg)';
-                  iconBg.style.borderColor = theme.color;
-                  iconBg.style.boxShadow = `0 0 20px ${theme.glow}`;
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-                e.currentTarget.style.boxShadow = '0 20px 45px rgba(0, 0, 0, 0.6)';
-                e.currentTarget.style.background = 'rgba(4, 12, 34, 0.5)';
-                const iconBg = e.currentTarget.querySelector('.icon-bg') as HTMLElement;
-                if (iconBg) {
-                  iconBg.style.transform = 'scale(1) rotate(0deg)';
-                  iconBg.style.borderColor = 'rgba(255, 255, 255, 0.05)';
-                  iconBg.style.boxShadow = 'none';
-                }
-              }}
-            >
-              {/* Type Badge */}
-              <span style={{
-                color: theme.color,
-                fontSize: '11px',
-                fontWeight: 700,
-                letterSpacing: '1px',
-                background: `rgba(${parseInt(theme.color.slice(1,3), 16) || 255}, ${parseInt(theme.color.slice(3,5), 16) || 255}, ${parseInt(theme.color.slice(5,7), 16) || 255}, 0.1)`,
-                border: `1px solid rgba(${parseInt(theme.color.slice(1,3), 16) || 255}, ${parseInt(theme.color.slice(3,5), 16) || 255}, ${parseInt(theme.color.slice(5,7), 16) || 255}, 0.2)`,
-                padding: '3px 10px',
-                borderRadius: '20px',
-                marginBottom: '20px',
-                display: 'inline-block',
-                textTransform: 'uppercase',
-              }}>
-                {theme.badge}
-              </span>
+        <p
+          style={{
+            fontSize: 'clamp(12px, 3vw, 14px)',
+            color: '#9ca3af',
+            margin: '0 0 clamp(16px, 3vw, 32px) 0',
+            letterSpacing: '0.5px',
+            textAlign: 'center',
+            fontWeight: 500,
+          }}
+        >
+          检测到生命特征突破，请选择一项突变性状以继续：
+        </p>
 
-              {/* Mutation Icon Container */}
-              <div 
-                className="icon-bg"
+        <div
+          style={{
+            display: 'flex',
+            gap: 'clamp(12px, 2.5vw, 24px)',
+            justifyContent: 'center',
+            alignItems: 'stretch',
+            flexWrap: 'wrap',
+            width: '100%',
+          }}
+        >
+          {choices.map((card) => {
+            const theme = getMutationTheme(card.id);
+
+            return (
+              <div
+                key={card.id}
+                onClick={() => actions.applyMutation(card.id)}
+                className="glass-panel"
                 style={{
-                  background: 'rgba(255, 255, 255, 0.02)',
-                  borderRadius: '50%',
-                  width: '88px',
-                  height: '88px',
+                  flex: '1 1 200px',
+                  maxWidth: '280px',
+                  background: 'rgba(4, 12, 34, 0.55)',
+                  border: '1.5px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '20px',
+                  padding: 'clamp(18px, 3vw, 30px) clamp(14px, 3vw, 22px)',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  boxShadow: '0 15px 35px rgba(0, 0, 0, 0.6)',
+                  transition: 'all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)',
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: '24px',
-                  border: '1px solid rgba(255, 255, 255, 0.05)',
-                  transition: 'all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                  boxSizing: 'border-box',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-6px) scale(1.02)';
+                  e.currentTarget.style.borderColor = theme.color;
+                  e.currentTarget.style.boxShadow = `0 20px 40px ${theme.glow}`;
+                  e.currentTarget.style.background = 'rgba(4, 12, 34, 0.7)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                  e.currentTarget.style.boxShadow = '0 15px 35px rgba(0, 0, 0, 0.6)';
+                  e.currentTarget.style.background = 'rgba(4, 12, 34, 0.55)';
                 }}
               >
-                {getMutationIcon(card.id)}
+                {/* Type Badge */}
+                <span
+                  style={{
+                    color: theme.color,
+                    fontSize: '10.5px',
+                    fontWeight: 700,
+                    letterSpacing: '0.5px',
+                    background: `rgba(${parseInt(theme.color.slice(1, 3), 16) || 255}, ${parseInt(theme.color.slice(3, 5), 16) || 255}, ${parseInt(theme.color.slice(5, 7), 16) || 255}, 0.12)`,
+                    border: `1px solid rgba(${parseInt(theme.color.slice(1, 3), 16) || 255}, ${parseInt(theme.color.slice(3, 5), 16) || 255}, ${parseInt(theme.color.slice(5, 7), 16) || 255}, 0.25)`,
+                    padding: '2px 8px',
+                    borderRadius: '16px',
+                    marginBottom: '14px',
+                    display: 'inline-block',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {theme.badge}
+                </span>
+
+                {/* Mutation Icon Container */}
+                <div
+                  className="icon-bg"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    borderRadius: '50%',
+                    width: 'clamp(56px, 12vw, 76px)',
+                    height: 'clamp(56px, 12vw, 76px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: '16px',
+                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                    transition: 'all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                  }}
+                >
+                  {getMutationIcon(card.id)}
+                </div>
+
+                {/* Title */}
+                <h3
+                  style={{
+                    fontSize: 'clamp(16px, 3.5vw, 18px)',
+                    fontWeight: 800,
+                    color: '#f3f4f6',
+                    margin: '0 0 8px 0',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  {card.name}
+                </h3>
+
+                {/* Description */}
+                <p
+                  style={{
+                    fontSize: 'clamp(11.5px, 2.8vw, 12.5px)',
+                    color: '#9ca3af',
+                    lineHeight: '1.6',
+                    margin: 0,
+                    flexGrow: 1,
+                    fontWeight: 500,
+                  }}
+                >
+                  {card.description}
+                </p>
               </div>
-
-              {/* Title */}
-              <h3 style={{
-                fontSize: 19,
-                fontWeight: 800,
-                color: '#f3f4f6',
-                margin: '0 0 12px 0',
-                letterSpacing: '0.5px'
-              }}>
-                {card.name}
-              </h3>
-
-              {/* Description */}
-              <p style={{
-                fontSize: 13,
-                color: '#9ca3af',
-                lineHeight: '1.65',
-                margin: 0,
-                flexGrow: 1,
-                fontWeight: 500
-              }}>
-                {card.description}
-              </p>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

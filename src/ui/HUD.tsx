@@ -1,5 +1,4 @@
-// src/ui/HUD.tsx
-
+import { useState, useEffect } from 'react';
 import { useStore } from 'zustand';
 import { gameStore } from '../engine/store';
 import ComboBar from './ComboBar';
@@ -34,6 +33,24 @@ export default function HUD() {
   const muted = useStore(gameStore, (s) => s.muted);
   const actions = useStore(gameStore, (s) => s.actions);
 
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+
   // 冻结时间：只订阅计算后的剩余秒数（primitive），而不是整个 entities Map
   const freezeTimeLeft = useStore(gameStore, (s) => {
     let maxUntil = 0;
@@ -61,7 +78,7 @@ export default function HUD() {
         top: 0,
         left: 0,
         width: '100%',
-        padding: '24px 32px',
+        padding: 'max(10px, var(--sat)) max(12px, var(--sar)) 0 max(12px, var(--sal))',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
@@ -74,27 +91,27 @@ export default function HUD() {
       {/* Left Panel: Level & Mass Dashboard */}
       <div
         style={{
-          background: 'rgba(4, 12, 34, 0.55)',
+          background: 'rgba(4, 12, 34, 0.65)',
           backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
           border: '1px solid rgba(255, 255, 255, 0.08)',
           borderTop: '2px solid #F4C542',
-          borderRadius: '16px',
-          padding: '14px 20px',
+          borderRadius: '14px',
+          padding: '8px 12px',
           color: '#fff',
           display: 'flex',
           flexDirection: 'column',
-          gap: '6px',
+          gap: '4px',
           pointerEvents: 'auto',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
+          boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
           transition: 'all 0.3s ease',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '15px' }}>🦈</span>
-          <span style={{ fontSize: '12px', color: '#9ca3af', fontWeight: 500 }}>等阶</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '13px' }}>🦈</span>
           <span
             style={{
-              fontSize: '18px',
+              fontSize: '15px',
               fontWeight: 800,
               color: '#F4C542',
               fontFamily: "'Orbitron', sans-serif",
@@ -104,10 +121,10 @@ export default function HUD() {
           </span>
           <span
             style={{
-              fontSize: '11px',
+              fontSize: '10px',
               color: '#7dd3fc',
-              background: 'rgba(125, 211, 252, 0.1)',
-              padding: '2px 6px',
+              background: 'rgba(125, 211, 252, 0.12)',
+              padding: '1px 5px',
               borderRadius: '4px',
               fontWeight: 600,
             }}
@@ -115,12 +132,12 @@ export default function HUD() {
             {getTitle(evolutionLevel)}
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '15px' }}>⚖️</span>
-          <span style={{ fontSize: '12px', color: '#9ca3af', fontWeight: 500 }}>质量</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '13px' }}>⚖️</span>
+          <span style={{ fontSize: '11px', color: '#9ca3af', fontWeight: 500 }}>质量</span>
           <span
             style={{
-              fontSize: '20px',
+              fontSize: '15px',
               fontWeight: 800,
               color: '#f3f4f6',
               fontFamily: "'Orbitron', sans-serif",
@@ -131,14 +148,15 @@ export default function HUD() {
         </div>
       </div>
 
-      {/* Center Panel: Combo & Buff/Skill Badges */}
+      {/* Center Panel: Combo & Buff Badges */}
       <div
         style={{
           pointerEvents: 'auto',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '12px',
+          gap: '8px',
+          maxWidth: '50vw',
         }}
       >
         <ComboBar />
@@ -147,13 +165,16 @@ export default function HUD() {
           <div
             style={{
               display: 'flex',
-              gap: '10px',
-              background: 'rgba(4, 12, 34, 0.6)',
+              gap: '6px',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              background: 'rgba(4, 12, 34, 0.65)',
               border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '24px',
-              padding: '8px 20px',
-              boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+              borderRadius: '16px',
+              padding: '4px 10px',
+              boxShadow: '0 8px 20px rgba(0,0,0,0.5)',
               backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
               alignItems: 'center',
             }}
           >
@@ -161,128 +182,112 @@ export default function HUD() {
               <span
                 style={{
                   color: '#fbbf24',
-                  fontSize: '11.5px',
+                  fontSize: '10.5px',
                   fontWeight: 'bold',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '5px',
+                  gap: '3px',
                   background: 'rgba(251, 191, 36, 0.12)',
                   border: '1px solid rgba(251, 191, 36, 0.25)',
-                  padding: '4px 10px',
-                  borderRadius: '12px',
-                  boxShadow: '0 0 10px rgba(251, 191, 36, 0.1)',
+                  padding: '2px 7px',
+                  borderRadius: '10px',
                 }}
               >
-                🛡️ 护盾激活
+                🛡️ 护盾
               </span>
             )}
             {magnetTimeLeft > 0 && (
               <span
                 style={{
                   color: '#f43f5e',
-                  fontSize: '11.5px',
+                  fontSize: '10.5px',
                   fontWeight: 'bold',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '5px',
+                  gap: '3px',
                   background: 'rgba(244, 63, 94, 0.12)',
                   border: '1px solid rgba(244, 63, 94, 0.25)',
-                  padding: '4px 10px',
-                  borderRadius: '12px',
-                  boxShadow: '0 0 10px rgba(244, 63, 94, 0.1)',
+                  padding: '2px 7px',
+                  borderRadius: '10px',
                   fontFamily: 'monospace',
                 }}
               >
-                🧲 磁力: {magnetTimeLeft.toFixed(1)}s
+                🧲 {magnetTimeLeft.toFixed(1)}s
               </span>
             )}
             {freezeTimeLeft > 0 && (
               <span
                 style={{
                   color: '#06b6d4',
-                  fontSize: '11.5px',
+                  fontSize: '10.5px',
                   fontWeight: 'bold',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '5px',
+                  gap: '3px',
                   background: 'rgba(6, 182, 212, 0.12)',
                   border: '1px solid rgba(6, 182, 212, 0.25)',
-                  padding: '4px 10px',
-                  borderRadius: '12px',
-                  boxShadow: '0 0 10px rgba(6, 182, 212, 0.1)',
+                  padding: '2px 7px',
+                  borderRadius: '10px',
                   fontFamily: 'monospace',
                 }}
               >
-                ❄️ 冰冻: {freezeTimeLeft.toFixed(1)}s
+                ❄️ {freezeTimeLeft.toFixed(1)}s
               </span>
             )}
             {hasInkSkill && (
               <span
                 style={{
                   color: inkCdLeft > 0 ? '#9ca3af' : '#c084fc',
-                  fontSize: '11.5px',
+                  fontSize: '10.5px',
                   fontWeight: 'bold',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '5px',
-                  background: inkCdLeft > 0 ? 'rgba(156, 163, 175, 0.1)' : 'rgba(192, 132, 252, 0.12)',
-                  border: inkCdLeft > 0 ? '1px solid rgba(156, 163, 175, 0.2)' : '1px solid rgba(192, 132, 252, 0.25)',
-                  padding: '4px 10px',
-                  borderRadius: '12px',
-                  boxShadow: inkCdLeft > 0 ? 'none' : '0 0 10px rgba(192, 132, 252, 0.15)',
+                  gap: '3px',
+                  background: inkCdLeft > 0 ? 'rgba(156, 163, 175, 0.1)' : 'rgba(192, 132, 252, 0.15)',
+                  border: inkCdLeft > 0 ? '1px solid rgba(156, 163, 175, 0.2)' : '1px solid rgba(192, 132, 252, 0.3)',
+                  padding: '2px 7px',
+                  borderRadius: '10px',
                   fontFamily: inkCdLeft > 0 ? 'monospace' : 'inherit',
                 }}
               >
-                🔮 墨汁:{' '}
-                {inkCdLeft > 0 ? (
-                  `${inkCdLeft.toFixed(1)}s`
-                ) : (
-                  <span>
-                    就绪{' '}
-                    <span
-                      className="key-cap"
-                      style={{ fontSize: '9px', padding: '0 3px', borderBottomWidth: '1px' }}
-                    >
-                      Q
-                    </span>
-                  </span>
-                )}
+                🔮 {inkCdLeft > 0 ? `${inkCdLeft.toFixed(1)}s` : '就绪'}
               </span>
             )}
           </div>
         )}
       </div>
 
-      {/* Right Panel: Survival Time & Stats Dashboard */}
+      {/* Right Panel: Survival Time, Stats & Controls */}
       <div
         style={{
-          background: 'rgba(4, 12, 34, 0.55)',
+          background: 'rgba(4, 12, 34, 0.65)',
           backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
           border: '1px solid rgba(255, 255, 255, 0.08)',
           borderTop: '2px solid #8FE3B0',
-          borderRadius: '16px',
-          padding: '14px 20px',
+          borderRadius: '14px',
+          padding: '8px 12px',
           color: '#fff',
           display: 'flex',
           flexDirection: 'column',
-          gap: '6px',
+          gap: '4px',
           pointerEvents: 'auto',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
+          boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
           alignItems: 'flex-end',
         }}
       >
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <span style={{ fontSize: '12px', color: '#9ca3af', fontWeight: 500 }}>生存时长</span>
-          <span style={{ fontSize: '16px', fontWeight: 800, color: '#f3f4f6', fontFamily: 'monospace' }}>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          <span style={{ fontSize: '11px', color: '#9ca3af', fontWeight: 500 }}>时长</span>
+          <span style={{ fontSize: '14px', fontWeight: 800, color: '#f3f4f6', fontFamily: 'monospace' }}>
             {formatTime(survivalMs)}
           </span>
-          <span style={{ fontSize: '14px' }}>⏱️</span>
+          <span style={{ fontSize: '12px' }}>⏱️</span>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <span style={{ fontSize: '12px', color: '#9ca3af', fontWeight: 500 }}>吞噬数量</span>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          <span style={{ fontSize: '11px', color: '#9ca3af', fontWeight: 500 }}>捕食</span>
           <span
             style={{
-              fontSize: '18px',
+              fontSize: '15px',
               fontWeight: 800,
               color: '#8FE3B0',
               fontFamily: "'Orbitron', sans-serif",
@@ -290,7 +295,7 @@ export default function HUD() {
           >
             {totalEaten}
           </span>
-          <span style={{ fontSize: '14px' }}>🐟</span>
+          <span style={{ fontSize: '12px' }}>🐟</span>
         </div>
 
         <div
@@ -298,38 +303,52 @@ export default function HUD() {
             display: 'flex',
             width: '100%',
             justifyContent: 'flex-end',
-            marginTop: '6px',
+            gap: '6px',
+            marginTop: '2px',
             borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-            paddingTop: '8px',
+            paddingTop: '4px',
           }}
         >
           <button
+            type="button"
+            onClick={() => toggleFullscreen()}
+            style={{
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: '6px',
+              color: '#9ca3af',
+              padding: '2px 6px',
+              cursor: 'pointer',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '2px',
+              transition: 'all 0.2s',
+            }}
+            title={isFullscreen ? '退出全屏' : '进入全屏'}
+          >
+            {isFullscreen ? '⤓' : '⤢'}
+          </button>
+          <button
+            type="button"
             onClick={() => actions.toggleMute()}
             style={{
               background: 'rgba(255, 255, 255, 0.08)',
               border: '1px solid rgba(255, 255, 255, 0.12)',
               borderRadius: '6px',
               color: '#9ca3af',
-              padding: '2px 8px',
+              padding: '2px 6px',
               cursor: 'pointer',
               fontSize: '11px',
               fontWeight: 'bold',
               display: 'flex',
               alignItems: 'center',
-              gap: '4px',
+              gap: '3px',
               transition: 'all 0.2s',
-              pointerEvents: 'auto',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
-              e.currentTarget.style.color = '#fff';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-              e.currentTarget.style.color = '#9ca3af';
             }}
           >
-            {muted ? '🔇 静音' : '🔊 音效: 开'}
+            {muted ? '🔇' : '🔊'}
           </button>
         </div>
       </div>

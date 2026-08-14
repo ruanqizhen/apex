@@ -91,8 +91,10 @@ export const CanvasRenderer = {
     // 危险预警指示器
     this.renderDangerIndicators(ctx, state);
 
-    // 3. 绘制 HUD/Debug Overlay (在屏幕固定空间，不受相机矩阵影响)
-    this.renderDebugOverlay(ctx, state);
+    // 3. 绘制 HUD/Debug Overlay (仅在宽屏桌面端展示，避免移动端遮挡操作与视野)
+    if (canvasWidth >= 1024) {
+      this.renderDebugOverlay(ctx, state);
+    }
 
     // 4. 迷你地图
     this.renderMinimap(ctx, state);
@@ -237,9 +239,11 @@ export const CanvasRenderer = {
     const { canvasWidth, canvasHeight, camera, player, entities, currents, logicalClockMs } = state;
     if (!player.isAlive) return;
 
-    const mapSize = 140;
-    const mapX = canvasWidth - mapSize - 20;
-    const mapY = canvasHeight - mapSize - 20;
+    const isMobile = canvasWidth < 768;
+    const mapSize = isMobile ? 86 : 130;
+    // 移动端置于左下角或右上角避让右手操作区
+    const mapX = isMobile ? 16 : canvasWidth - mapSize - 20;
+    const mapY = isMobile ? 86 : canvasHeight - mapSize - 20;
     const mapCenterX = mapX + mapSize / 2;
     const mapCenterY = mapY + mapSize / 2;
 

@@ -46,8 +46,8 @@ export default function ComboBar() {
           ? '0 0 25px rgba(255, 159, 26, 0.35), inset 0 1px 2px rgba(0,0,0,0.5)' 
           : '0 4px 10px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(0,0,0,0.5)',
         boxSizing: 'border-box',
-        width: '260px',
-        height: '22px',
+        width: 'clamp(140px, 32vw, 240px)',
+        height: '20px',
         transition: 'all 0.3s ease',
         backdropFilter: 'blur(4px)',
       }}>

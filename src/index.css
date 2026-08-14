@@ -1,4 +1,9 @@
-/* Global styles + theme — extracted from inline <style> */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
 
 html,
 body,
@@ -13,6 +18,27 @@ body,
     Cantarell, sans-serif;
   color: #f3f4f6;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+/* Custom sleek scrollbar for modal containers */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(244, 197, 66, 0.3);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(244, 197, 66, 0.6);
 }
 
 /* Glassmorphism Panel */
@@ -187,3 +213,61 @@ body,
   font-size: 11px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
+
+/* Mobile Action Button Styles */
+.mobile-action-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: radial-gradient(circle at 35% 35%, rgba(14, 165, 233, 0.35) 0%, rgba(4, 12, 34, 0.75) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.25);
+  transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.12s ease, border-color 0.12s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  cursor: pointer;
+}
+
+.mobile-action-btn:active,
+.mobile-action-btn.active {
+  transform: scale(0.92);
+  border-color: #38bdf8;
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.4), inset 0 0 12px rgba(56, 189, 248, 0.3);
+}
+
+.mobile-action-btn-dash {
+  background: radial-gradient(circle at 35% 35%, rgba(244, 197, 66, 0.35) 0%, rgba(20, 14, 4, 0.85) 100%);
+  border-color: rgba(244, 197, 66, 0.4);
+}
+
+.mobile-action-btn-dash:active,
+.mobile-action-btn-dash.active {
+  border-color: #f4c542;
+  box-shadow: 0 0 28px rgba(244, 197, 66, 0.6), inset 0 0 16px rgba(244, 197, 66, 0.4);
+}
+
+.mobile-action-btn-skill {
+  background: radial-gradient(circle at 35% 35%, rgba(192, 132, 252, 0.35) 0%, rgba(18, 4, 30, 0.85) 100%);
+  border-color: rgba(192, 132, 252, 0.4);
+}
+
+.mobile-action-btn-skill:active,
+.mobile-action-btn-skill.active {
+  border-color: #c084fc;
+  box-shadow: 0 0 25px rgba(192, 132, 252, 0.6), inset 0 0 16px rgba(192, 132, 252, 0.4);
+}
+
+/* Mobile Media Queries */
+@media (max-width: 768px) {
+  .glass-panel {
+    border-radius: 18px;
+  }
+}
+

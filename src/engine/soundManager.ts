@@ -56,10 +56,10 @@ class SoundManagerClass {
   }
 
   // Ensure AudioContext is running (needed due to browser autoplay policy)
-  private resumeContext() {
+  public resumeContext() {
     this.init();
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => {});
     }
   }
 

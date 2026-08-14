@@ -98,8 +98,12 @@ export const gameStore = createStore<GameStore>((set, get) => {
         const player = createInitialPlayer();
         globalSpatialHash.cellSize = player.radius * 4;
 
-        // 根据初始玩家半径和屏幕宽度计算相机的初始缩放比例
-        const initialScale = (get().canvasWidth * 0.05) / (2 * player.radius);
+        // 根据初始玩家半径和屏幕自适应计算相机的初始缩放比例
+        const minDim = Math.min(get().canvasWidth, get().canvasHeight);
+        const isMobile = minDim < 600;
+        const scaleFactor = isMobile ? 0.125 : 0.08;
+        const desiredPixelDiameter = Math.max(minDim * scaleFactor, 46);
+        const initialScale = desiredPixelDiameter / (2 * player.radius);
 
         set({
           status: 'playing',
@@ -375,7 +379,7 @@ export const gameStore = createStore<GameStore>((set, get) => {
               stats: state.stats,
               muted: state.muted
             };
-            cameraSystem(updatedStateForCamera, state.canvasWidth);
+            cameraSystem(updatedStateForCamera, state.canvasWidth, state.canvasHeight);
 
             return {
               logicalClockMs: nextClock,
@@ -472,7 +476,7 @@ export const gameStore = createStore<GameStore>((set, get) => {
           spawnSystem(updatedState, effectiveDt, state.canvasWidth, state.canvasHeight, globalEntityPool);
 
           // 相机居中与缩放
-          cameraSystem(updatedState, state.canvasWidth);
+          cameraSystem(updatedState, state.canvasWidth, state.canvasHeight);
 
           // 更新冲刺气泡声音状态
           SoundManager.updateDashSound(

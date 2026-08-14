@@ -3,12 +3,14 @@ import { useStore } from 'zustand';
 import { gameStore } from './engine/store';
 import { CanvasRenderer } from './render/CanvasRenderer';
 import { GameLoop } from './engine/loop';
+import { SoundManager } from './engine/soundManager';
 
 import StartScreen from './ui/StartScreen';
 import GameOverScreen from './ui/GameOverScreen';
 import EvolutionCardModal from './ui/EvolutionCardModal';
 import UpgradeCinematic from './ui/UpgradeCinematic';
 import HUD from './ui/HUD';
+import MobileControls from './ui/MobileControls';
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -16,7 +18,12 @@ export default function App() {
   const status = useStore(gameStore, (s) => s.status);
   const statusRef = useRef(status);
   statusRef.current = status;
-  const [showCompatNotice, setShowCompatNotice] = useState(false);
+
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+
+  useEffect(() => {
+    setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -28,17 +35,19 @@ export default function App() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
       actions.setCanvasSize(window.innerWidth, window.innerHeight);
-
-      const isSmall = window.innerWidth < 1024 || window.innerHeight < 640;
-      const isPortrait = window.innerHeight > window.innerWidth;
-      if (isSmall || isPortrait) {
-        setShowCompatNotice(true);
-      }
     };
 
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
+    // Unlock Web Audio Context on first user touch/pointer interaction (iOS/Android policy)
+    const unlockAudio = () => {
+      SoundManager.resumeContext();
+    };
+    window.addEventListener('touchstart', unlockAudio, { passive: true });
+    window.addEventListener('pointerdown', unlockAudio, { passive: true });
+
+    // Desktop Mouse steering handler
     const handleMouseMove = (e: MouseEvent) => {
       if (statusRef.current !== 'playing') return;
       const cx = window.innerWidth / 2;
@@ -51,11 +60,13 @@ export default function App() {
       }
     };
 
+    // Desktop Mouse down/up dash and skill handlers
     const handleMouseDown = (e: MouseEvent) => {
       if (statusRef.current === 'playing') {
         if (e.button === 2) {
           actions.triggerActiveSkill?.();
-        } else {
+        } else if (e.button === 0) {
+          // If not targeting an interactive button
           actions.setDashing(true);
         }
       }
@@ -104,6 +115,8 @@ export default function App() {
 
     return () => {
       window.removeEventListener('resize', resizeCanvas);
+      window.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener('pointerdown', unlockAudio);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mouseup', handleMouseUp);
@@ -112,57 +125,15 @@ export default function App() {
       window.removeEventListener('contextmenu', handleContextMenu);
       GameLoop.stop();
     };
-    // actions stable from vanilla store, status via ref — avoid re-creating listeners on status change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
-      {showCompatNotice && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            background: 'rgba(224, 92, 92, 0.92)',
-            color: '#fff',
-            padding: '10px 20px',
-            textAlign: 'center',
-            fontSize: '13px',
-            fontWeight: 'bold',
-            zIndex: 100,
-            fontFamily: 'sans-serif',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: '15px',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
-            boxSizing: 'border-box',
-          }}
-        >
-          <span>⚠️ 建议使用桌面浏览器（分辨率 1024×640 以上，横屏模式）以获得最佳游戏体验。</span>
-          <button
-            type="button"
-            onClick={() => setShowCompatNotice(false)}
-            style={{
-              background: 'rgba(255, 255, 255, 0.25)',
-              border: 'none',
-              borderRadius: '4px',
-              color: '#fff',
-              padding: '3px 10px',
-              cursor: 'pointer',
-              fontSize: '11px',
-              fontWeight: 'bold',
-              pointerEvents: 'auto',
-            }}
-          >
-            忽略
-          </button>
-        </div>
-      )}
-
       <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} />
+
+      {/* Mobile Touch Joystick and Action Buttons */}
+      <MobileControls />
 
       {status === 'start_screen' && <StartScreen />}
       {status === 'playing' && <HUD />}
@@ -180,26 +151,29 @@ export default function App() {
       )}
       {status === 'game_over' && <GameOverScreen />}
 
-      {(status === 'playing' || status === 'paused_evolution' || status === 'upgrade_animation') && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 20,
-            left: 20,
-            background: 'rgba(2, 7, 18, 0.7)',
-            padding: '10px 14px',
-            borderRadius: 8,
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            pointerEvents: 'none',
-            fontFamily: 'sans-serif',
-            fontSize: 12,
-            color: '#9ca3af',
-            boxShadow: '0 4px 10px rgba(0, 0, 0, 0.4)',
-          }}
-        >
-          <div>控制：鼠标移动游动，左键/空格冲刺 (冲刺消耗 2% 质量/秒)</div>
-        </div>
-      )}
+      {/* Desktop-only control prompt */}
+      {!isTouchDevice &&
+        (status === 'playing' || status === 'paused_evolution' || status === 'upgrade_animation') && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 20,
+              left: 20,
+              background: 'rgba(2, 7, 18, 0.7)',
+              padding: '8px 12px',
+              borderRadius: 8,
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              pointerEvents: 'none',
+              fontFamily: 'sans-serif',
+              fontSize: 11,
+              color: '#9ca3af',
+              boxShadow: '0 4px 10px rgba(0, 0, 0, 0.4)',
+              zIndex: 4,
+            }}
+          >
+            <div>控制：鼠标移动游动，左键/空格冲刺 (冲刺消耗 2% 质量/秒)</div>
+          </div>
+        )}
     </div>
   );
 }
