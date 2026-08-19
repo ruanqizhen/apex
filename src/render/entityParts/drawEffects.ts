@@ -209,32 +209,150 @@ export function drawPredatorDecor(
 }
 
 // ══════════════════════════════════════════════
+//  护盾光晕护体 (仅当拥有气泡护盾或突变护盾时呈现)
+// ══════════════════════════════════════════════
+export function drawShieldAura(
+  ctx: CanvasRenderingContext2D,
+  shieldRadiusX: number,
+  shieldRadiusY: number,
+  clockMs: number,
+  hasItemShield: boolean,
+  shieldStacks: number
+) {
+  ctx.save();
+  const pulse = 1.0 + 0.04 * Math.sin(clockMs * 0.006);
+  const rx = shieldRadiusX * pulse;
+  const ry = shieldRadiusY * pulse;
+
+  // 1. 最外层柔和扩散光晕 (Luminous Halo Aura)
+  const auraR = Math.max(rx, ry) * 1.55;
+  const auraGrad = ctx.createRadialGradient(0, 0, Math.min(rx, ry) * 0.4, 0, 0, auraR);
+  if (hasItemShield && shieldStacks > 0) {
+    // 双重护盾：碧蓝 + 金耀交融光晕
+    auraGrad.addColorStop(0, 'rgba(56, 189, 248, 0.28)');
+    auraGrad.addColorStop(0.5, 'rgba(244, 197, 66, 0.16)');
+    auraGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+  } else if (shieldStacks > 0) {
+    // 突变黄金护盾光晕
+    auraGrad.addColorStop(0, 'rgba(251, 191, 36, 0.28)');
+    auraGrad.addColorStop(0.5, 'rgba(245, 158, 11, 0.14)');
+    auraGrad.addColorStop(1, 'rgba(245, 158, 11, 0)');
+  } else {
+    // 道具气泡护盾水蓝光晕
+    auraGrad.addColorStop(0, 'rgba(56, 189, 248, 0.32)');
+    auraGrad.addColorStop(0.5, 'rgba(14, 165, 233, 0.16)');
+    auraGrad.addColorStop(1, 'rgba(14, 165, 233, 0)');
+  }
+  ctx.fillStyle = auraGrad;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, rx * 1.4, ry * 1.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 2. 内部半透明晶体能量护罩膜 (Bubble Shield Surface)
+  const bubbleGrad = ctx.createRadialGradient(0, 0, ry * 0.5, 0, 0, ry);
+  if (shieldStacks > 0 && !hasItemShield) {
+    bubbleGrad.addColorStop(0, 'rgba(254, 240, 138, 0.02)');
+    bubbleGrad.addColorStop(0.75, 'rgba(251, 191, 36, 0.12)');
+    bubbleGrad.addColorStop(0.92, 'rgba(255, 255, 255, 0.55)');
+    bubbleGrad.addColorStop(1, 'rgba(245, 158, 11, 0.3)');
+  } else {
+    bubbleGrad.addColorStop(0, 'rgba(56, 189, 248, 0.02)');
+    bubbleGrad.addColorStop(0.75, 'rgba(56, 189, 248, 0.15)');
+    bubbleGrad.addColorStop(0.92, 'rgba(255, 255, 255, 0.65)');
+    bubbleGrad.addColorStop(1, 'rgba(186, 230, 253, 0.35)');
+  }
+  ctx.fillStyle = bubbleGrad;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 3. 护罩外轮廓发光边界
+  ctx.strokeStyle = hasItemShield
+    ? 'rgba(125, 211, 252, 0.9)'
+    : 'rgba(253, 224, 71, 0.9)';
+  ctx.lineWidth = Math.max(1.2, rx * 0.025);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // 4. 气泡高光反光弧线 (Glossy reflection crescent)
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+  ctx.lineWidth = Math.max(1.5, rx * 0.035);
+  ctx.beginPath();
+  ctx.arc(-rx * 0.35, -ry * 0.35, ry * 0.28, Math.PI * 0.95, Math.PI * 1.55);
+  ctx.stroke();
+
+  // 次高光弧
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+  ctx.lineWidth = Math.max(0.8, rx * 0.02);
+  ctx.beginPath();
+  ctx.arc(rx * 0.3, ry * 0.35, ry * 0.18, Math.PI * 0.05, Math.PI * 0.45);
+  ctx.stroke();
+
+  // 5. 旋转的能量轨道环 (Orbiting Rune Ring)
+  const rot = clockMs * 0.0018;
+  ctx.strokeStyle = hasItemShield
+    ? 'rgba(186, 230, 253, 0.7)'
+    : 'rgba(254, 240, 138, 0.75)';
+  ctx.lineWidth = Math.max(1.0, rx * 0.02);
+  ctx.setLineDash([rx * 0.18, rx * 0.14]);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, rx * 1.08, ry * 1.08, rot, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // 反向旋转的细能量环
+  ctx.strokeStyle = hasItemShield
+    ? 'rgba(56, 189, 248, 0.5)'
+    : 'rgba(245, 158, 11, 0.5)';
+  ctx.lineWidth = Math.max(0.6, rx * 0.015);
+  ctx.setLineDash([rx * 0.1, rx * 0.12]);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, rx * 1.16, ry * 1.16, -rot * 0.8, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 6. 护盾环绕的小能量星斑 (Orbital Shield Sparkles)
+  const sparkCount = shieldStacks > 1 ? 5 : 3;
+  for (let si = 0; si < sparkCount; si++) {
+    const sAngle = rot * 1.2 + (si / sparkCount) * Math.PI * 2;
+    const sx = Math.cos(sAngle) * (rx * 1.08);
+    const sy = Math.sin(sAngle) * (ry * 1.08);
+    const sSize = Math.max(2.0, rx * 0.045);
+
+    ctx.fillStyle = hasItemShield ? '#ffffff' : '#fef08a';
+    ctx.shadowBlur = sSize * 2.5;
+    ctx.shadowColor = hasItemShield ? '#38bdf8' : '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(sx, sy, sSize, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  ctx.restore();
+}
+
+// ══════════════════════════════════════════════
 //  Player 专属效果
 // ══════════════════════════════════════════════
 export function drawPlayerEffects(
-  ctx: CanvasRenderingContext2D, player: Player, _species: FishSpecies,
-  bodyLen: number, bodyHeight: number, radius: number, clockMs: number,
+  ctx: CanvasRenderingContext2D,
+  player: Player,
+  _species: FishSpecies,
+  bodyLen: number,
+  bodyHeight: number,
+  radius: number,
+  clockMs: number,
   bodyPath: Path2D
 ) {
   const lvl = player.evolutionLevel;
 
-  const isMagnetActive = player.magnetUntil !== null && player.magnetUntil > clockMs;
-  if (isMagnetActive) {
+  // 1. 磁吸光线
+  if (player.magnetUntil !== null && player.magnetUntil > clockMs) {
     ctx.save();
-    const magnetPulse = 1.0 + 0.1 * Math.sin(clockMs * 0.01);
-    const magnetGrad = ctx.createRadialGradient(0, 0, radius, 0, 0, radius * 3.5 * magnetPulse);
-    magnetGrad.addColorStop(0, 'rgba(244, 63, 94, 0.0)');
-    magnetGrad.addColorStop(0.5, 'rgba(244, 63, 94, 0.05)');
-    magnetGrad.addColorStop(0.85, 'rgba(59, 130, 246, 0.15)');
-    magnetGrad.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
-    ctx.fillStyle = magnetGrad;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * 3.5 * magnetPulse, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([5, 10]);
+    const magnetPulse = 1.0 + 0.15 * Math.sin(clockMs * 0.008);
+    ctx.strokeStyle = 'rgba(244, 63, 94, 0.45)';
+    ctx.lineWidth = radius * 0.035;
+    ctx.setLineDash([radius * 0.15, radius * 0.15]);
     ctx.beginPath();
     for (let i = 0; i < 4; i++) {
       const angle = (i / 4) * Math.PI * 2 + clockMs * 0.0015;
@@ -252,31 +370,14 @@ export function drawPlayerEffects(
     ctx.restore();
   }
 
-  if (player.shieldActive) {
-    ctx.save();
-    const bubblePulse = 1.0 + 0.04 * Math.sin(clockMs * 0.006);
-    const shieldR_X = bodyLen * 0.68 * bubblePulse;
-    const shieldR_Y = bodyHeight * 1.35 * bubblePulse;
-
-    const shieldGrad = ctx.createRadialGradient(0, 0, shieldR_Y * 0.6, 0, 0, shieldR_Y);
-    shieldGrad.addColorStop(0, 'rgba(56, 189, 248, 0.0)');
-    shieldGrad.addColorStop(0.8, 'rgba(56, 189, 248, 0.08)');
-    shieldGrad.addColorStop(0.95, 'rgba(255, 255, 255, 0.45)');
-    shieldGrad.addColorStop(1, 'rgba(186, 230, 253, 0.15)');
-
-    ctx.fillStyle = shieldGrad;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, shieldR_X, shieldR_Y, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(-shieldR_X * 0.35, -shieldR_Y * 0.35, shieldR_Y * 0.25, Math.PI, Math.PI * 1.5);
-    ctx.stroke();
-    ctx.restore();
+  // 2. 护盾光晕护体 (仅当拥有护盾时展示，平时无光晕)
+  const shieldStack = player.mutations.find(m => m.id === 'mut_shield')?.stacks || 0;
+  const hasItemShield = player.shieldActive;
+  if (hasItemShield || shieldStack > 0) {
+    drawShieldAura(ctx, bodyLen * 0.68, bodyHeight * 1.35, clockMs, hasItemShield, shieldStack);
   }
 
+  // 3. 高等级体表呼吸波
   if (lvl >= 6) {
     const pulseAlpha = 0.15 + 0.1 * Math.sin(clockMs * 0.004);
     ctx.save();
@@ -295,20 +396,7 @@ export function drawPlayerEffects(
     ctx.restore();
   }
 
-  const shieldStack = player.mutations.find(m => m.id === 'mut_shield')?.stacks || 0;
-  if (shieldStack > 0) {
-    ctx.strokeStyle = 'rgba(244, 197, 66, 0.85)';
-    ctx.lineWidth = radius * 0.1;
-    ctx.setLineDash([radius * 0.25, radius * 0.12]);
-    ctx.beginPath();
-    ctx.ellipse(0, 0, bodyLen * 0.6, bodyHeight * 1.1, 0,
-      (clockMs * 0.002) % (Math.PI * 2),
-      (clockMs * 0.002) % (Math.PI * 2) + Math.PI * 2
-    );
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
+  // 4. 无敌闪烁
   if (player.isInvulnerableUntil && player.isInvulnerableUntil > clockMs) {
     if (Math.floor(clockMs / 100) % 2 === 0) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
@@ -316,16 +404,5 @@ export function drawPlayerEffects(
       ctx.ellipse(0, 0, bodyLen * 0.6, bodyHeight * 1.05, 0, 0, Math.PI * 2);
       ctx.fill();
     }
-  }
-
-  if (lvl >= 3) {
-    const haloAlpha = 0.06 + 0.04 * Math.sin(clockMs * 0.003);
-    const haloGrad = ctx.createRadialGradient(0, 0, bodyLen * 0.3, 0, 0, bodyLen * 0.8);
-    haloGrad.addColorStop(0, `rgba(244, 197, 66, ${haloAlpha})`);
-    haloGrad.addColorStop(1, 'rgba(244, 197, 66, 0)');
-    ctx.fillStyle = haloGrad;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, bodyLen * 0.8, bodyHeight * 1.3, 0, 0, Math.PI * 2);
-    ctx.fill();
   }
 }

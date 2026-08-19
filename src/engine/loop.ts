@@ -16,11 +16,19 @@ function rafLoop(now: number) {
 
   const currentState = gameStore.getState();
   
-  if (currentState.status === 'playing' || currentState.status === 'upgrade_animation') {
+  if (
+    currentState.status === 'playing' ||
+    currentState.status === 'upgrade_animation' ||
+    currentState.status === 'death_animation'
+  ) {
     accumulator += frameDt;
     while (accumulator >= TICK_MS) {
       const currentStatus = gameStore.getState().status;
-      if (currentStatus === 'playing' || currentStatus === 'upgrade_animation') {
+      if (
+        currentStatus === 'playing' ||
+        currentStatus === 'upgrade_animation' ||
+        currentStatus === 'death_animation'
+      ) {
         gameStore.getState().actions.runFixedTick(TICK_MS);
       } else {
         accumulator = 0;

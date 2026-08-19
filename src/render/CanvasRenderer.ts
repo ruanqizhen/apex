@@ -88,6 +88,31 @@ export const CanvasRenderer = {
       ctx.restore();
     }
 
+    // 被大鱼吞噬特写死亡电影感暗角与遮幅
+    if (state.status === 'death_animation' && state.deathCinematic) {
+      const death = state.deathCinematic;
+      const progress = Math.min(1.0, (logicalClockMs - death.startClockMs) / death.durationMs);
+
+      ctx.save();
+      const deathGrad = ctx.createRadialGradient(
+        canvasWidth / 2, canvasHeight / 2, Math.min(canvasWidth, canvasHeight) * 0.2,
+        canvasWidth / 2, canvasHeight / 2, Math.max(canvasWidth, canvasHeight) * 0.7
+      );
+      const intensity = Math.min(1.0, progress * 1.5);
+      deathGrad.addColorStop(0, 'rgba(40, 5, 5, 0.0)');
+      deathGrad.addColorStop(0.5, `rgba(180, 20, 20, ${0.15 * intensity})`);
+      deathGrad.addColorStop(1, `rgba(30, 0, 0, ${0.65 * intensity})`);
+      ctx.fillStyle = deathGrad;
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+      // 上下电影遮幅黑边（Cinema Letterbox）
+      const barHeight = Math.min(canvasHeight * 0.08, 48) * intensity;
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, canvasWidth, barHeight);
+      ctx.fillRect(0, canvasHeight - barHeight, canvasWidth, barHeight);
+      ctx.restore();
+    }
+
     // 危险预警指示器
     this.renderDangerIndicators(ctx, state);
 

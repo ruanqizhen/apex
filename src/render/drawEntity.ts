@@ -13,6 +13,7 @@ import {
   drawShieldSpines,
   drawPredatorDecor,
   drawPlayerEffects,
+  drawShieldAura,
 } from './entityParts/drawEffects';
 import { drawMouth, drawEye } from './entityParts/drawFeatures';
 
@@ -29,6 +30,61 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
   let drawFacing = entity.facing;
   const isPlayer = type === EntityType.Player;
   const isUpgradeAnim = isPlayer && state.status === 'upgrade_animation';
+  const isDeathAnim = state.status === 'death_animation';
+
+  // ── 被大鱼吞噬死亡过场：我方小鱼吸入与消失动画 ──
+  if (isPlayer && isDeathAnim && state.deathCinematic) {
+    const death = state.deathCinematic;
+    const progress = Math.min(1.0, (logicalClockMs - death.startClockMs) / death.durationMs);
+
+    // 如果咬合已完成（progress >= 0.40），小鱼已被吞入大鱼腹中，不予绘制
+    if (progress >= 0.40) {
+      return;
+    }
+
+    // 阶段1：小鱼被大鱼张口旋涡吸入（位置向大鱼嘴部靠拢，伴随旋转和缩小）
+    const t = progress / 0.40;
+    const killer = state.entities.get(death.killerId);
+    const kPos = killer ? killer.position : death.killerPosition;
+    const kFacing = killer ? killer.facing : death.killerFacing;
+    const kRadius = killer ? killer.radius : death.killerRadius;
+
+    // 大鱼喉咙/嘴部中心世界坐标
+    const mouthX = kPos.x + Math.cos(kFacing) * kRadius * 0.65;
+    const mouthY = kPos.y + Math.sin(kFacing) * kRadius * 0.65;
+
+    const easeT = Math.pow(t, 1.3);
+    const curX = death.playerStartPosition.x + (mouthX - death.playerStartPosition.x) * easeT;
+    const curY = death.playerStartPosition.y + (mouthY - death.playerStartPosition.y) * easeT;
+    const curScale = Math.max(0.12, 1.0 - t * 0.7);
+    const spinAngle = death.playerStartFacing + t * Math.PI * 2.0;
+
+    ctx.save();
+    ctx.translate(curX, curY);
+    ctx.rotate(spinAngle);
+    ctx.scale(curScale, curScale);
+    ctx.globalAlpha = Math.max(0.3, 1.0 - t * 0.4);
+
+    const player = entity as Player;
+    const lvl = player.evolutionLevel;
+    if (lvl <= 1) {
+      drawTadpole(ctx, player, radius, logicalClockMs);
+    } else {
+      const pSpecies = getSpecies(type, 0);
+      const aspect = pSpecies.bodyAspect;
+      const bodyLen = radius * aspect;
+      const bodyHeight = radius * (2.0 / (aspect * 0.5 + 0.5)) * 0.5;
+      const bodyPath = createBodyPath(bodyLen, bodyHeight, 0, false);
+      drawTail(ctx, pSpecies, bodyLen, bodyHeight, radius, 0, logicalClockMs, lvl, false, false);
+      drawDorsalFin(ctx, pSpecies, bodyLen, bodyHeight, radius, logicalClockMs, lvl, false);
+      drawBody(ctx, pSpecies, bodyLen, bodyHeight, type, player, bodyPath);
+      drawPattern(ctx, pSpecies, bodyLen, bodyHeight, radius, bodyPath, lvl);
+      drawEye(ctx, pSpecies, bodyLen, bodyHeight, radius, lvl);
+    }
+    ctx.restore();
+    return;
+  }
+
   if (isUpgradeAnim) {
     const timer = state.upgradeAnimationTimer ?? 0;
     const msLeft = Math.max(0, timer - logicalClockMs);
@@ -119,13 +175,33 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
       gulpScale = 1.0 + Math.sin(t * Math.PI) * 0.22;
       mouthOpen = Math.pow(Math.sin(t * Math.PI), 0.7) * 1.3;
     }
+  } else if (state.status === 'death_animation' && state.deathCinematic?.killerId === entity.id) {
+    // 掠食大鱼张嘴吞食我方小鱼的动态计算
+    const death = state.deathCinematic;
+    const progress = Math.min(1.0, (logicalClockMs - death.startClockMs) / death.durationMs);
+    if (progress < 0.40) {
+      // 阶段1：大鱼张大血盆巨口 (0 -> 1.85)
+      const t = progress / 0.40;
+      mouthOpen = Math.pow(Math.sin(t * Math.PI * 0.5), 0.7) * 1.85;
+      gulpScale = 1.0 + t * 0.2;
+    } else if (progress < 0.58) {
+      // 阶段2：利齿瞬间合拢咬碎 (1.85 -> 0)
+      const t = (progress - 0.40) / 0.18;
+      mouthOpen = (1.0 - t) * 1.85;
+      gulpScale = 1.20 - t * 0.16;
+    } else {
+      // 阶段3：腹部吞咽蠕动鼓起
+      const t = (progress - 0.58) / 0.42;
+      mouthOpen = 0;
+      gulpScale = 1.0 + Math.sin(t * Math.PI) * 0.26;
+    }
   }
 
   const aspect = species.bodyAspect;
   const bodyLen = radius * aspect * gulpScale;
   const bodyHeight = radius * (2.0 / (aspect * 0.5 + 0.5)) * 0.5 * gulpScale;
 
-  ctx.shadowBlur = radius * 0.35;
+  ctx.shadowBlur = isPlayer ? 0 : radius * 0.35;
   ctx.shadowColor = species.glowColor;
 
   drawTail(ctx, species, bodyLen, bodyHeight, radius, tailSwing, logicalClockMs, lvl, isEntityFrozen, isStunned);
@@ -183,6 +259,7 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
 
 // ──────────────────────────────────────────────
 // 小蝌蚪特化渲染（Lvl 0-1 玩家独有）
+// 全新视觉：深海生物发光体 + 半透明膜质尾鳍 + 有机纹脉 + 呼吸动画
 // ──────────────────────────────────────────────
 function drawTadpole(ctx: CanvasRenderingContext2D, player: Player, radius: number, logicalClockMs: number) {
   const msSinceEat = logicalClockMs - player.comboLastEatAt;
@@ -194,144 +271,434 @@ function drawTadpole(ctx: CanvasRenderingContext2D, player: Player, radius: numb
     mouthOpen = Math.pow(Math.sin(t * Math.PI), 0.7) * 1.3;
   }
 
-  const currentRadius = radius * gulpScale;
-  ctx.shadowBlur = currentRadius * 0.65;
-  ctx.shadowColor = 'rgba(245, 158, 11, 0.7)';
-
-  // 尾巴
-  const phase = logicalClockMs * 0.016;
-  const swing1 = Math.sin(phase) * currentRadius * 0.45;
-  const swing2 = Math.sin(phase - 1.2) * currentRadius * 0.78;
+  const r = radius * gulpScale;
+  const phase = logicalClockMs * 0.014;
+  const breathe = Math.sin(logicalClockMs * 0.004) * 0.04 + 1.0; // 呼吸膨缩
 
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  const tailPoints = [
-    { x: -currentRadius * 0.2, y: 0, w: currentRadius * 0.45 },
-    { x: -currentRadius * 0.9, y: swing1 * 0.4, w: currentRadius * 0.32 },
-    { x: -currentRadius * 1.7, y: swing1, w: currentRadius * 0.2 },
-    { x: -currentRadius * 2.5, y: swing2, w: currentRadius * 0.08 },
-  ];
-  for (let i = 0; i < tailPoints.length - 1; i++) {
-    const p1 = tailPoints[i];
-    const p2 = tailPoints[i + 1];
-    ctx.strokeStyle = '#fbbf24';
-    ctx.lineWidth = p1.w;
+  // ── 1. 尾巴骨架 + 半透明膜质尾鳍 ──
+  const swing1 = Math.sin(phase) * r * 0.5;
+  const swing2 = Math.sin(phase - 1.0) * r * 0.82;
+  const swing3 = Math.sin(phase - 2.0) * r * 1.0;
+
+  // 尾巴中轴控制点（从身体根部到末端）
+  const t0 = { x: -r * 0.15, y: 0 };
+  const t1 = { x: -r * 0.75, y: swing1 * 0.35 };
+  const t2 = { x: -r * 1.45, y: swing1 * 0.85 };
+  const t3 = { x: -r * 2.15, y: swing2 * 0.95 };
+  const t4 = { x: -r * 2.8,  y: swing3 };
+
+  // 半透明膜质尾鳍（上下对称的有机波纹形状）
+  ctx.save();
+  const finWave1 = Math.sin(phase + 0.8) * r * 0.25;
+  const finWave2 = Math.sin(phase + 1.6) * r * 0.35;
+  const finWave3 = Math.sin(phase + 2.4) * r * 0.2;
+
+  // 上方膜鳍
+  const finGradUp = ctx.createLinearGradient(t1.x, t1.y - r * 0.5, t4.x, t4.y);
+  finGradUp.addColorStop(0, 'rgba(255, 200, 60, 0.12)');
+  finGradUp.addColorStop(0.4, 'rgba(255, 180, 50, 0.18)');
+  finGradUp.addColorStop(0.8, 'rgba(255, 160, 30, 0.08)');
+  finGradUp.addColorStop(1, 'rgba(255, 140, 0, 0)');
+  ctx.fillStyle = finGradUp;
+  ctx.beginPath();
+  ctx.moveTo(t1.x, t1.y);
+  ctx.quadraticCurveTo(t2.x, t2.y - r * 0.38 + finWave1, t3.x, t3.y - r * 0.28 + finWave2);
+  ctx.quadraticCurveTo(t3.x - r * 0.3, t3.y - r * 0.12 + finWave3, t4.x, t4.y);
+  ctx.lineTo(t3.x, t3.y);
+  ctx.quadraticCurveTo(t2.x + r * 0.1, t2.y, t1.x, t1.y);
+  ctx.closePath();
+  ctx.fill();
+
+  // 下方膜鳍
+  const finGradDown = ctx.createLinearGradient(t1.x, t1.y + r * 0.5, t4.x, t4.y);
+  finGradDown.addColorStop(0, 'rgba(255, 200, 60, 0.10)');
+  finGradDown.addColorStop(0.4, 'rgba(255, 180, 50, 0.15)');
+  finGradDown.addColorStop(0.8, 'rgba(255, 160, 30, 0.06)');
+  finGradDown.addColorStop(1, 'rgba(255, 140, 0, 0)');
+  ctx.fillStyle = finGradDown;
+  ctx.beginPath();
+  ctx.moveTo(t1.x, t1.y);
+  ctx.quadraticCurveTo(t2.x, t2.y + r * 0.35 - finWave1, t3.x, t3.y + r * 0.25 - finWave2);
+  ctx.quadraticCurveTo(t3.x - r * 0.3, t3.y + r * 0.1 - finWave3, t4.x, t4.y);
+  ctx.lineTo(t3.x, t3.y);
+  ctx.quadraticCurveTo(t2.x + r * 0.1, t2.y, t1.x, t1.y);
+  ctx.closePath();
+  ctx.fill();
+
+  // 膜鳍脉络（纤细的筋脉线）
+  ctx.strokeStyle = 'rgba(255, 195, 60, 0.12)';
+  ctx.lineWidth = Math.max(0.5, r * 0.015);
+  for (let vi = 0; vi < 3; vi++) {
+    const vt = 0.3 + vi * 0.25;
+    const vx = t1.x + (t4.x - t1.x) * vt;
+    const vy = t1.y + (t4.y - t1.y) * vt;
+    const vOff = Math.sin(phase + vi * 1.2) * r * (0.15 + vi * 0.06);
     ctx.beginPath();
-    ctx.moveTo(p1.x, p1.y);
-    ctx.quadraticCurveTo((p1.x + p2.x) / 2, (p1.y + p2.y) / 2, p2.x, p2.y);
+    ctx.moveTo(vx, vy);
+    ctx.quadraticCurveTo(vx - r * 0.15, vy - r * 0.15 + vOff, vx - r * 0.3, vy - r * 0.05 + vOff * 0.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(vx, vy);
+    ctx.quadraticCurveTo(vx - r * 0.15, vy + r * 0.12 - vOff, vx - r * 0.25, vy + r * 0.04 - vOff * 0.5);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 尾巴中轴（带渐变粗细的有机骨架）
+  const tailSegs = [
+    { from: t0, to: t1, w: r * 0.42 },
+    { from: t1, to: t2, w: r * 0.28 },
+    { from: t2, to: t3, w: r * 0.16 },
+    { from: t3, to: t4, w: r * 0.05 },
+  ];
+  for (let i = 0; i < tailSegs.length; i++) {
+    const seg = tailSegs[i];
+    const tailGrad = ctx.createLinearGradient(seg.from.x, seg.from.y, seg.to.x, seg.to.y);
+    if (i === 0) {
+      tailGrad.addColorStop(0, '#fcd34d');
+      tailGrad.addColorStop(1, '#f59e0b');
+    } else if (i === 1) {
+      tailGrad.addColorStop(0, '#f59e0b');
+      tailGrad.addColorStop(1, '#d97706');
+    } else {
+      tailGrad.addColorStop(0, '#d97706');
+      tailGrad.addColorStop(1, '#b45309');
+    }
+    ctx.strokeStyle = tailGrad;
+    ctx.lineWidth = seg.w;
+    ctx.beginPath();
+    ctx.moveTo(seg.from.x, seg.from.y);
+    const cx = (seg.from.x + seg.to.x) / 2;
+    const cy = (seg.from.y + seg.to.y) / 2;
+    ctx.quadraticCurveTo(cx, cy, seg.to.x, seg.to.y);
     ctx.stroke();
   }
 
-  // 头部
-  const headRadius = currentRadius * 0.78;
-  const headGrad = ctx.createRadialGradient(-headRadius * 0.2, -headRadius * 0.2, 0, 0, 0, headRadius);
-  headGrad.addColorStop(0, '#fffbeb');
-  headGrad.addColorStop(0.35, '#fbbf24');
-  headGrad.addColorStop(1, '#b45309');
+  // 尾巴中轴高光线（沿中心的亮线）
+  ctx.strokeStyle = 'rgba(255, 250, 220, 0.25)';
+  ctx.lineWidth = Math.max(0.8, r * 0.035);
+  ctx.beginPath();
+  ctx.moveTo(t0.x, t0.y);
+  ctx.quadraticCurveTo(t1.x, t1.y, t2.x, t2.y);
+  ctx.quadraticCurveTo(t3.x, t3.y, t4.x, t4.y);
+  ctx.stroke();
+
+  // ── 2. 小胸鳍（左右各一片，轻微扇动） ──
+  const pectFinPhase = Math.sin(logicalClockMs * 0.008) * 0.35;
+  const pectFinLen = r * 0.38;
+  const pectFinBaseX = -r * 0.08;
+
+  // 上方胸鳍
+  ctx.save();
+  ctx.translate(pectFinBaseX, -r * 0.42 * breathe);
+  ctx.rotate(-0.6 + pectFinPhase);
+  const pfGradU = ctx.createLinearGradient(0, 0, -pectFinLen, -pectFinLen * 0.3);
+  pfGradU.addColorStop(0, 'rgba(251, 191, 36, 0.5)');
+  pfGradU.addColorStop(1, 'rgba(251, 191, 36, 0.05)');
+  ctx.fillStyle = pfGradU;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(-pectFinLen * 0.5, -pectFinLen * 0.45, -pectFinLen, -pectFinLen * 0.15);
+  ctx.quadraticCurveTo(-pectFinLen * 0.6, pectFinLen * 0.1, 0, 0);
+  ctx.fill();
+  ctx.restore();
+
+  // 下方胸鳍
+  ctx.save();
+  ctx.translate(pectFinBaseX, r * 0.42 * breathe);
+  ctx.rotate(0.6 - pectFinPhase);
+  const pfGradD = ctx.createLinearGradient(0, 0, -pectFinLen, pectFinLen * 0.3);
+  pfGradD.addColorStop(0, 'rgba(251, 191, 36, 0.5)');
+  pfGradD.addColorStop(1, 'rgba(251, 191, 36, 0.05)');
+  ctx.fillStyle = pfGradD;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(-pectFinLen * 0.5, pectFinLen * 0.45, -pectFinLen, pectFinLen * 0.15);
+  ctx.quadraticCurveTo(-pectFinLen * 0.6, -pectFinLen * 0.1, 0, 0);
+  ctx.fill();
+  ctx.restore();
+
+  // ── 3. 头部（椭圆形身体 + 多层渐变 + 半透明光泽） ──
+  const headW = r * 0.88 * breathe; // 水平半径（稍大）
+  const headH = r * 0.72 * breathe; // 垂直半径（稍扁）
+
+  // 底色渐变（深海暖金色调，上下对称居中）
+  const headGrad = ctx.createRadialGradient(
+    -headW * 0.15, 0, headW * 0.05,
+    headW * 0.05, 0, Math.max(headW, headH) * 1.1
+  );
+  headGrad.addColorStop(0, '#fffde7');
+  headGrad.addColorStop(0.2, '#fef3c7');
+  headGrad.addColorStop(0.45, '#fbbf24');
+  headGrad.addColorStop(0.75, '#d97706');
+  headGrad.addColorStop(1, '#92400e');
   ctx.fillStyle = headGrad;
   ctx.beginPath();
-  ctx.arc(0, 0, headRadius, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, headW, headH, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.arc(-headRadius * 0.3, -headRadius * 0.3, headRadius * 0.3, Math.PI, Math.PI * 1.5);
-  ctx.stroke();
   ctx.shadowBlur = 0;
 
-  // 眼睛
-  const eyeX = headRadius * 0.36;
-  const eyeY = -headRadius * 0.36;
-  const eyeR = headRadius * 0.22;
-  ctx.fillStyle = '#ffffff';
+  // 次表面散射光泽层（左侧偏移的淡光，上下居中）
+  const sssGrad = ctx.createRadialGradient(
+    -headW * 0.3, 0, 0,
+    -headW * 0.1, 0, headW * 0.85
+  );
+  sssGrad.addColorStop(0, 'rgba(255, 255, 245, 0.4)');
+  sssGrad.addColorStop(0.35, 'rgba(255, 248, 220, 0.12)');
+  sssGrad.addColorStop(1, 'rgba(255, 230, 150, 0)');
+  ctx.fillStyle = sssGrad;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, headW, headH, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 边缘发光轮廓
+  ctx.strokeStyle = 'rgba(255, 220, 100, 0.3)';
+  ctx.lineWidth = Math.max(1.0, r * 0.03);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, headW, headH, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // ── 4. 内部有机纹脉（透过半透明体壁可见的血管网） ──
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(0, 0, headW * 0.92, headH * 0.92, 0, 0, Math.PI * 2);
+  ctx.clip();
+
+  const veinPulse = 0.5 + 0.3 * Math.sin(logicalClockMs * 0.003);
+  ctx.strokeStyle = `rgba(200, 120, 20, ${0.06 + veinPulse * 0.04})`;
+  ctx.lineWidth = Math.max(0.4, r * 0.012);
+
+  // 几条弯曲的脉络线（上下对称成对分布）
+  const veinData = [
+    { sx: -0.3, sy: -0.1, cx: -0.05, cy: -0.3, ex: 0.35, ey: -0.12 },
+    { sx: -0.3, sy: 0.1, cx: -0.05, cy: 0.3, ex: 0.35, ey: 0.12 },
+    { sx: -0.15, sy: 0, cx: 0.1, cy: 0, ex: 0.4, ey: 0 },
+  ];
+  for (const v of veinData) {
+    ctx.beginPath();
+    ctx.moveTo(v.sx * headW, v.sy * headH);
+    ctx.quadraticCurveTo(v.cx * headW, v.cy * headH, v.ex * headW, v.ey * headH);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // ── 5. 体表斑点图案（半透明金色斑纹，上下对称分布） ──
+  const spotAlpha = 0.08 + 0.04 * Math.sin(logicalClockMs * 0.002);
+  ctx.fillStyle = `rgba(180, 83, 9, ${spotAlpha})`;
+  const spots = [
+    { x: -0.25, y: 0.18, s: 0.07 },
+    { x: -0.25, y: -0.18, s: 0.07 },
+    { x: 0.1, y: 0.2, s: 0.055 },
+    { x: 0.1, y: -0.2, s: 0.055 },
+    { x: -0.4, y: 0.0, s: 0.06 },
+  ];
+  for (const sp of spots) {
+    ctx.beginPath();
+    ctx.arc(sp.x * headW, sp.y * headH, sp.s * r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ── 6. 鳃裂呼吸动画（上下对称的弧形裂隙，随呼吸周期张合） ──
+  const gillOpen = 0.3 + 0.7 * Math.max(0, Math.sin(logicalClockMs * 0.005));
+  const gillAlpha = 0.15 + gillOpen * 0.2;
+  ctx.strokeStyle = `rgba(180, 83, 9, ${gillAlpha})`;
+  ctx.lineWidth = Math.max(0.6, r * 0.02);
+  ctx.lineCap = 'round';
+
+  const gillX = headW * 0.15;
+  const gillLen = headH * 0.22 * (0.6 + gillOpen * 0.4);
+  // 上鳃裂（从中心向上延伸）
+  ctx.beginPath();
+  ctx.moveTo(gillX, -headH * 0.05);
+  ctx.quadraticCurveTo(gillX + r * 0.06, -headH * 0.05 - gillLen * 0.5, gillX + r * 0.02, -headH * 0.05 - gillLen);
+  ctx.stroke();
+  // 下鳃裂（从中心向下延伸，镜像对称）
+  ctx.beginPath();
+  ctx.moveTo(gillX, headH * 0.05);
+  ctx.quadraticCurveTo(gillX + r * 0.06, headH * 0.05 + gillLen * 0.5, gillX + r * 0.02, headH * 0.05 + gillLen);
+  ctx.stroke();
+
+  // ── 7. 眼睛（更大、更有神的眼睛 + 虹膜 + 动态高光） ──
+  const eyeX = headW * 0.18;
+  const eyeY = 0;
+  const eyeR = r * 0.2;
+
+  // 眼眶阴影
+  ctx.save();
+  const eyeShadow = ctx.createRadialGradient(eyeX, eyeY, eyeR * 0.3, eyeX, eyeY, eyeR * 1.5);
+  eyeShadow.addColorStop(0, 'rgba(120, 60, 0, 0.15)');
+  eyeShadow.addColorStop(1, 'rgba(120, 60, 0, 0)');
+  ctx.fillStyle = eyeShadow;
+  ctx.beginPath();
+  ctx.arc(eyeX, eyeY, eyeR * 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 眼白
+  const eyeWhiteGrad = ctx.createRadialGradient(
+    eyeX - eyeR * 0.15, eyeY - eyeR * 0.1, 0,
+    eyeX, eyeY, eyeR
+  );
+  eyeWhiteGrad.addColorStop(0, '#ffffff');
+  eyeWhiteGrad.addColorStop(0.7, '#f0f0f5');
+  eyeWhiteGrad.addColorStop(1, '#d4d4e0');
+  ctx.fillStyle = eyeWhiteGrad;
   ctx.beginPath();
   ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = '#0f0f18';
+
+  // 虹膜（棕金色渐变环）
+  const irisR = eyeR * 0.7;
+  const irisCx = eyeX + eyeR * 0.08;
+  const irisCy = eyeY + eyeR * 0.02;
+  const irisGrad = ctx.createRadialGradient(irisCx, irisCy, irisR * 0.15, irisCx, irisCy, irisR);
+  irisGrad.addColorStop(0, '#1a1a2e');
+  irisGrad.addColorStop(0.35, '#1a1a2e');
+  irisGrad.addColorStop(0.4, '#92400e');
+  irisGrad.addColorStop(0.7, '#b45309');
+  irisGrad.addColorStop(0.9, '#d97706');
+  irisGrad.addColorStop(1, '#78350f');
+  ctx.fillStyle = irisGrad;
   ctx.beginPath();
-  ctx.arc(eyeX + eyeR * 0.15, eyeY, eyeR * 0.65, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(eyeX + eyeR * 0.3, eyeY - eyeR * 0.2, eyeR * 0.22, 0, Math.PI * 2);
+  ctx.arc(irisCx, irisCy, irisR, 0, Math.PI * 2);
   ctx.fill();
 
-  // 嘴
-  const mouthCenterRadius = headRadius;
+  // 瞳孔
+  const pupilR = eyeR * 0.32;
+  ctx.fillStyle = '#0a0a12';
+  ctx.beginPath();
+  ctx.arc(irisCx, irisCy, pupilR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 主高光（随时间微微移动）
+  const hlShift = Math.sin(logicalClockMs * 0.002) * eyeR * 0.05;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+  ctx.beginPath();
+  ctx.arc(eyeX + eyeR * 0.25 + hlShift, eyeY - eyeR * 0.25, eyeR * 0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 次高光
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+  ctx.beginPath();
+  ctx.arc(eyeX - eyeR * 0.15, eyeY + eyeR * 0.3, eyeR * 0.1, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 眼轮廓
+  ctx.strokeStyle = 'rgba(120, 60, 0, 0.25)';
+  ctx.lineWidth = Math.max(0.5, r * 0.012);
+  ctx.beginPath();
+  ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // ── 8. 嘴部（居中，上下对称） ──
   if (mouthOpen > 0.05) {
-    const gapeHalfAngle = 0.45 * mouthOpen;
-    const mouthAngle = 0.12 * Math.PI;
-    const upperLipAngle = mouthAngle - gapeHalfAngle;
-    const lowerLipAngle = mouthAngle + gapeHalfAngle;
-    const ux = Math.cos(upperLipAngle) * mouthCenterRadius;
-    const uy = Math.sin(upperLipAngle) * mouthCenterRadius;
-    const lx = Math.cos(lowerLipAngle) * mouthCenterRadius;
-    const ly = Math.sin(lowerLipAngle) * mouthCenterRadius;
-    const cornerX = Math.cos(mouthAngle) * mouthCenterRadius * 0.42;
-    const cornerY = Math.sin(mouthAngle) * mouthCenterRadius * 0.42;
+    const gapeHalfAngle = 0.4 * mouthOpen;
+    // mouthAngle = 0 表示嘴在正右方水平中心线上
+    const upperLipAngle = -gapeHalfAngle;
+    const lowerLipAngle = gapeHalfAngle;
+    const ux = Math.cos(upperLipAngle) * headW;
+    const uy = Math.sin(upperLipAngle) * headH * 0.85;
+    const lx = Math.cos(lowerLipAngle) * headW;
+    const ly = Math.sin(lowerLipAngle) * headH * 0.85;
+    const cornerX = headW * 0.45;
+    const cornerY = 0;
 
-    ctx.fillStyle = '#220505';
+    // 嘴内深色
+    ctx.fillStyle = '#1a0505';
     ctx.beginPath();
     ctx.moveTo(ux, uy);
-    ctx.quadraticCurveTo(cornerX + headRadius * 0.12, cornerY - headRadius * 0.08, cornerX, cornerY);
-    ctx.quadraticCurveTo(cornerX + headRadius * 0.12, cornerY + headRadius * 0.08, lx, ly);
-    ctx.quadraticCurveTo(ux + headRadius * 0.25 * mouthOpen, (uy + ly) / 2, ux, uy);
+    ctx.quadraticCurveTo(cornerX + r * 0.1, cornerY - r * 0.06, cornerX, cornerY);
+    ctx.quadraticCurveTo(cornerX + r * 0.1, cornerY + r * 0.06, lx, ly);
+    ctx.quadraticCurveTo(ux + r * 0.2 * mouthOpen, (uy + ly) / 2, ux, uy);
     ctx.closePath();
     ctx.fill();
 
-    const radGrd = ctx.createRadialGradient(cornerX, cornerY, 1, cornerX, cornerY, headRadius * mouthOpen * 0.55);
-    radGrd.addColorStop(0, '#881515');
-    radGrd.addColorStop(0.5, '#440909');
-    radGrd.addColorStop(1, 'rgba(34, 5, 5, 0)');
-    ctx.fillStyle = radGrd;
+    // 嘴内渐变
+    const mouthGrd = ctx.createRadialGradient(cornerX, cornerY, 1, cornerX, cornerY, r * mouthOpen * 0.5);
+    mouthGrd.addColorStop(0, '#881515');
+    mouthGrd.addColorStop(0.5, '#440909');
+    mouthGrd.addColorStop(1, 'rgba(34, 5, 5, 0)');
+    ctx.fillStyle = mouthGrd;
     ctx.beginPath();
     ctx.moveTo(ux, uy);
-    ctx.quadraticCurveTo(cornerX + headRadius * 0.12, cornerY - headRadius * 0.08, cornerX, cornerY);
-    ctx.quadraticCurveTo(cornerX + headRadius * 0.12, cornerY + headRadius * 0.08, lx, ly);
-    ctx.quadraticCurveTo(ux + headRadius * 0.25 * mouthOpen, (uy + ly) / 2, ux, uy);
+    ctx.quadraticCurveTo(cornerX + r * 0.1, cornerY - r * 0.06, cornerX, cornerY);
+    ctx.quadraticCurveTo(cornerX + r * 0.1, cornerY + r * 0.06, lx, ly);
+    ctx.quadraticCurveTo(ux + r * 0.2 * mouthOpen, (uy + ly) / 2, ux, uy);
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = '#ffffff';
-    const tux = ux - (ux - cornerX) * 0.35;
-    const tuy = uy - (uy - cornerY) * 0.35;
-    ctx.beginPath();
-    ctx.moveTo(tux, tuy);
-    ctx.lineTo(tux - headRadius * 0.07, tuy + headRadius * 0.12);
-    ctx.lineTo(tux - headRadius * 0.03, tuy + headRadius * 0.04);
-    ctx.closePath();
-    ctx.fill();
-    const tlx = lx - (lx - cornerX) * 0.35;
-    const tly = ly - (ly - cornerY) * 0.35;
-    ctx.beginPath();
-    ctx.moveTo(tlx, tly);
-    ctx.lineTo(tlx - headRadius * 0.07, tly - headRadius * 0.12);
-    ctx.lineTo(tlx - headRadius * 0.03, tly - headRadius * 0.04);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = '#fbbf24';
-    ctx.lineWidth = Math.max(1.5, headRadius * 0.07);
+    // 嘴唇线
+    ctx.strokeStyle = '#d97706';
+    ctx.lineWidth = Math.max(1.0, r * 0.05);
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(ux - headRadius * 0.08, uy - headRadius * 0.04);
+    ctx.moveTo(ux - r * 0.05, uy - r * 0.02);
     ctx.lineTo(ux, uy);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(lx - headRadius * 0.08, ly + headRadius * 0.04);
+    ctx.moveTo(lx - r * 0.05, ly + r * 0.02);
     ctx.lineTo(lx, ly);
     ctx.stroke();
   } else {
-    const mouthX = headRadius * 0.85;
-    const mouthY = headRadius * 0.15;
-    ctx.strokeStyle = '#b45309';
-    ctx.lineWidth = Math.max(1.2, headRadius * 0.08);
+    // 闭嘴（水平居中线上的一条短弧线）
+    const mouthX = headW * 0.82;
+    ctx.strokeStyle = '#92400e';
+    ctx.lineWidth = Math.max(1.0, r * 0.06);
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(mouthX - headRadius * 0.18, mouthY);
-    ctx.quadraticCurveTo(mouthX, mouthY + headRadius * 0.06, mouthX - headRadius * 0.08, mouthY + headRadius * 0.15);
+    ctx.moveTo(mouthX - r * 0.1, -r * 0.02);
+    ctx.quadraticCurveTo(mouthX + r * 0.02, 0, mouthX - r * 0.1, r * 0.02);
     ctx.stroke();
+  }
+
+  // ── 9. 体表弧形高光线（上下对称的釉面高光弧） ──
+  ctx.strokeStyle = 'rgba(255, 255, 245, 0.25)';
+  ctx.lineWidth = Math.max(0.8, r * 0.025);
+  // 上方高光弧
+  ctx.beginPath();
+  ctx.arc(-headW * 0.1, -headH * 0.15, headW * 0.4, Math.PI * 1.2, Math.PI * 1.55);
+  ctx.stroke();
+  // 下方高光弧（镜像）
+  ctx.beginPath();
+  ctx.arc(-headW * 0.1, headH * 0.15, headW * 0.4, Math.PI * 0.45, Math.PI * 0.8);
+  ctx.stroke();
+
+  // ── 10. 生物荧光小斑点（尾巴沿途的发光微粒） ──
+  const sparkleCount = 5;
+  for (let si = 0; si < sparkleCount; si++) {
+    const st = (si + 1) / (sparkleCount + 1);
+    const sparklePhase = logicalClockMs * 0.005 + si * 1.8;
+    const sparkleAlpha = 0.25 + 0.35 * Math.sin(sparklePhase);
+    if (sparkleAlpha < 0.1) continue;
+
+    // 沿尾巴中轴插值位置
+    const sx = t0.x + (t4.x - t0.x) * st;
+    const sy = t0.y + (t4.y - t0.y) * st + Math.sin(phase + si * 0.9) * r * 0.08;
+    const sparkleR = r * (0.025 + 0.015 * Math.sin(sparklePhase * 1.3));
+
+    const spGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, sparkleR * 3);
+    spGrad.addColorStop(0, `rgba(255, 230, 130, ${sparkleAlpha})`);
+    spGrad.addColorStop(0.5, `rgba(255, 200, 60, ${sparkleAlpha * 0.4})`);
+    spGrad.addColorStop(1, 'rgba(255, 180, 40, 0)');
+    ctx.fillStyle = spGrad;
+    ctx.beginPath();
+    ctx.arc(sx, sy, sparkleR * 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = `rgba(255, 250, 220, ${sparkleAlpha * 1.2})`;
+    ctx.beginPath();
+    ctx.arc(sx, sy, sparkleR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ── 11. 护盾光晕护体 (仅当吃到护盾时展示，平时无光晕) ──
+  const shieldStack = player.mutations.find(m => m.id === 'mut_shield')?.stacks || 0;
+  const hasItemShield = player.shieldActive;
+  if (hasItemShield || shieldStack > 0) {
+    drawShieldAura(ctx, headW * 1.35, headH * 1.45, logicalClockMs, hasItemShield, shieldStack);
   }
 }

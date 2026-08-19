@@ -226,7 +226,62 @@ class SoundManagerClass {
     osc.stop(this.ctx.currentTime + 0.17);
   }
 
-  // Shield Deflect (Metallic ding)
+  // Devoured by Predator (Heavy bone crunch, jaw clamp & deep throat swallowing gulp)
+  public playDevoured() {
+    this.resumeContext();
+    if (!this.ctx || !this.sfxGain) return;
+
+    const now = this.ctx.currentTime;
+
+    // 1. Heavy low frequency sub impact
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(140, now);
+    subOsc.frequency.exponentialRampToValueAtTime(30, now + 0.45);
+    subGain.gain.setValueAtTime(0.9, now);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+    subOsc.connect(subGain);
+    subGain.connect(this.sfxGain);
+    subOsc.start(now);
+    subOsc.stop(now + 0.46);
+
+    // 2. Bone crunch & jaw clamp (distorted frequency sweep)
+    const crunchOsc = this.ctx.createOscillator();
+    const crunchGain = this.ctx.createGain();
+    const crunchFilter = this.ctx.createBiquadFilter();
+    crunchOsc.type = 'sawtooth';
+    crunchOsc.frequency.setValueAtTime(450, now);
+    crunchOsc.frequency.exponentialRampToValueAtTime(60, now + 0.28);
+    crunchFilter.type = 'lowpass';
+    crunchFilter.frequency.setValueAtTime(800, now);
+    crunchFilter.frequency.exponentialRampToValueAtTime(120, now + 0.28);
+    crunchGain.gain.setValueAtTime(0.75, now);
+    crunchGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    crunchOsc.connect(crunchFilter);
+    crunchFilter.connect(crunchGain);
+    crunchGain.connect(this.sfxGain);
+    crunchOsc.start(now);
+    crunchOsc.stop(now + 0.31);
+
+    // 3. Deep watery gulp (delayed at 0.35s when jaws close)
+    const gulpTime = now + 0.35;
+    const gulpOsc = this.ctx.createOscillator();
+    const gulpGain = this.ctx.createGain();
+    const gulpFilter = this.ctx.createBiquadFilter();
+    gulpOsc.type = 'triangle';
+    gulpOsc.frequency.setValueAtTime(200, gulpTime);
+    gulpOsc.frequency.exponentialRampToValueAtTime(50, gulpTime + 0.3);
+    gulpGain.gain.setValueAtTime(0.8, gulpTime);
+    gulpGain.gain.exponentialRampToValueAtTime(0.001, gulpTime + 0.3);
+    gulpFilter.type = 'lowpass';
+    gulpFilter.frequency.setValueAtTime(250, gulpTime);
+    gulpOsc.connect(gulpFilter);
+    gulpFilter.connect(gulpGain);
+    gulpGain.connect(this.sfxGain);
+    gulpOsc.start(gulpTime);
+    gulpOsc.stop(gulpTime + 0.32);
+  }
   public playShieldDeflect() {
     this.resumeContext();
     if (!this.ctx || !this.sfxGain) return;

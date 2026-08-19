@@ -11,6 +11,7 @@ import EvolutionCardModal from './ui/EvolutionCardModal';
 import UpgradeCinematic from './ui/UpgradeCinematic';
 import HUD from './ui/HUD';
 import MobileControls from './ui/MobileControls';
+import DeathCinematic from './ui/DeathCinematic';
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -149,6 +150,7 @@ export default function App() {
           <UpgradeCinematic />
         </>
       )}
+      {status === 'death_animation' && <DeathCinematic />}
       {status === 'game_over' && <GameOverScreen />}
 
       {/* Desktop-only control prompt */}

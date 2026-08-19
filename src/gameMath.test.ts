@@ -43,6 +43,7 @@ function createMockState(): WorldState {
     upgradeAnimationType: null,
     upgradeOriginalLevel: 0,
     killCamUntil: null,
+    deathCinematic: null,
     currents: [],
     stats: { totalEaten: 0, maxMassReached: 100, survivalMs: 0 },
     muted: false,

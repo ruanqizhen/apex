@@ -233,59 +233,90 @@ export function consumptionSystem(
   if (lethalPredators.length > 0 && (!player.isInvulnerableUntil || player.isInvulnerableUntil <= clock)) {
     const predator = lethalPredators[0];
 
-    if (player.shieldActive) {
-      player.shieldActive = false;
-      player.isInvulnerableUntil = clock + 1500;
-      SoundManager.playShieldDeflect();
+    const shieldIndex = player.mutations.findIndex(m => m.id === 'mut_shield');
+    const hasBoneArmor = shieldIndex !== -1 && player.mutations[shieldIndex].stacks > 0;
+    const hasBubbleShield = player.shieldActive;
 
-      const dx = player.position.x - predator.position.x;
-      const dy = player.position.y - predator.position.y;
-      const dist = Math.hypot(dx, dy);
-      const nx = dist > 0 ? dx / dist : 1;
-      const ny = dist > 0 ? dy / dist : 0;
-      const pushDist = player.radius + predator.radius + 60;
-      player.position.x = predator.position.x + nx * pushDist;
-      player.position.y = predator.position.y + ny * pushDist;
-      player.velocity = { x: nx * player.baseSpeed * 2.5, y: ny * player.baseSpeed * 2.5 };
-
-      emitParticle({
-        kind: 'shield_break',
-        position: { ...player.position },
-        ttlMs: 800,
-        meta: { isBubble: 1 }
-      });
-    }
-    else {
-      const shieldIndex = player.mutations.findIndex(m => m.id === 'mut_shield');
-      if (shieldIndex !== -1 && player.mutations[shieldIndex].stacks > 0) {
+    // 当有气泡护盾或骨板（骨化重甲）时，被大鱼咬中触发强力弹开与无敌，绝不被吃掉
+    if (hasBubbleShield || hasBoneArmor) {
+      if (hasBubbleShield) {
+        player.shieldActive = false;
+      } else if (hasBoneArmor) {
         player.mutations[shieldIndex].stacks -= 1;
         if (player.mutations[shieldIndex].stacks === 0) {
           player.mutations.splice(shieldIndex, 1);
         }
-
-        SoundManager.playShieldDeflect();
-        player.isInvulnerableUntil = clock + 1000;
-
-        const dx = player.position.x - predator.position.x;
-        const dy = player.position.y - predator.position.y;
-        const dist = Math.hypot(dx, dy);
-        const nx = dist > 0 ? dx / dist : 1;
-        const ny = dist > 0 ? dy / dist : 0;
-        const pushDist = player.radius + predator.radius + 50;
-        player.position.x = predator.position.x + nx * pushDist;
-        player.position.y = predator.position.y + ny * pushDist;
-        player.velocity = { x: nx * player.baseSpeed * 2.0, y: ny * player.baseSpeed * 2.0 };
-
-        emitParticle({
-          kind: 'shield_break',
-          position: { ...player.position },
-          ttlMs: 800
-        });
-      } else {
-        player.isAlive = false;
-        state.status = 'game_over';
-        state.actions?.onGameOver?.();
       }
+
+      // 播放护盾金属/结晶格挡反弹音效
+      SoundManager.playShieldDeflect();
+
+      // 赋予 1800ms 充足无敌帧
+      player.isInvulnerableUntil = clock + 1800;
+
+      const dx = player.position.x - predator.position.x;
+      const dy = player.position.y - predator.position.y;
+      const dist = Math.hypot(dx, dy);
+      const nx = dist > 0.001 ? dx / dist : 1;
+      const ny = dist > 0.001 ? dy / dist : 0;
+
+      const prevPlayerPos = { ...player.position };
+      const prevPredatorPos = { ...predator.position };
+
+      // 强力弹开我方小鱼（弹射到安全距离外）
+      const safePushDist = player.radius + predator.radius + 120;
+      player.position.x = predator.position.x + nx * safePushDist;
+      player.position.y = predator.position.y + ny * safePushDist;
+      player.velocity = { x: nx * player.baseSpeed * 3.5, y: ny * player.baseSpeed * 3.5 };
+      player.facing = Math.atan2(ny, nx);
+
+      // 反作用力震退并眩晕大鱼 (1200ms)，使其无法立即黏身追击
+      predator.position.x -= nx * 50;
+      predator.position.y -= ny * 50;
+      predator.velocity = { x: -nx * predator.baseSpeed * 1.5, y: -ny * predator.baseSpeed * 1.5 };
+      predator.frozenUntil = clock + 1200;
+      predator.chargePhase = 'stunned';
+
+      // 立即同步更新空间哈希网格位置
+      state.spatialHash.update(player, prevPlayerPos);
+      state.spatialHash.update(predator, prevPredatorPos);
+
+      // 产生撞击护盾破裂爆碎粒子特效
+      emitParticle({
+        kind: 'shield_break',
+        position: {
+          x: predator.position.x + nx * predator.radius,
+          y: predator.position.y + ny * predator.radius,
+        },
+        ttlMs: 800,
+        meta: { isBubble: hasBubbleShield ? 1 : 0 }
+      });
+    } else {
+      // 真正没有护盾/骨板时，才触发被大鱼吞食过场动画 (2000ms 完整吞食特写)
+      const durationMs = 2000;
+      state.status = 'death_animation';
+
+      const dx = player.position.x - predator.position.x;
+      const dy = player.position.y - predator.position.y;
+      const targetFacing = Math.atan2(dy, dx);
+      predator.facing = targetFacing;
+
+      state.deathCinematic = {
+        killerId: predator.id,
+        killerSpeciesIndex: predator.speciesIndex,
+        killerType: predator.type,
+        killerRadius: predator.radius,
+        killerPosition: { ...predator.position },
+        killerFacing: targetFacing,
+        playerStartPosition: { ...player.position },
+        playerStartRadius: player.radius,
+        playerStartFacing: player.facing,
+        startClockMs: clock,
+        durationMs: durationMs,
+        hasBitten: false,
+      };
+
+      SoundManager.playDevoured();
     }
   }
 }

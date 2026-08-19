@@ -129,7 +129,22 @@ export interface CameraState {
   targetScale: number;
 }
 
-export type GameStatus = "start_screen" | "playing" | "paused_evolution" | "game_over" | "upgrade_animation";
+export type GameStatus = "start_screen" | "playing" | "paused_evolution" | "game_over" | "upgrade_animation" | "death_animation";
+
+export interface DeathCinematicState {
+  killerId: string;
+  killerSpeciesIndex: number;
+  killerType: EntityType;
+  killerRadius: number;
+  killerPosition: Vector2;
+  killerFacing: number;
+  playerStartPosition: Vector2;
+  playerStartRadius: number;
+  playerStartFacing: number;
+  startClockMs: number;
+  durationMs: number;
+  hasBitten?: boolean;
+}
 
 export interface SpatialHashGrid {
   cellSize: number;
@@ -154,6 +169,7 @@ export interface WorldState {
   upgradeAnimationType: 'tadpole_to_fry' | 'fry_to_juv' | 'juv_to_pred' | 'pred_to_levi' | null; // 升级大类 (Task 1)
   upgradeOriginalLevel: number; // 升级前的等级
   killCamUntil: number | null;     // 击杀特写截止逻辑时钟
+  deathCinematic: DeathCinematicState | null; // 被大鱼吞噬特写死亡动画
   currents: OceanCurrent[];        // 深海涌流列表
   stats: {
     totalEaten: number;

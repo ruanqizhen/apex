@@ -42,8 +42,8 @@ export function drawMouth(
     ctx.closePath();
     ctx.fill();
 
-    // 3. 为玩家和大型掠食者绘制一口锐利的白色钢牙 (向口内倾斜)
-    if (type === EntityType.Player || type === EntityType.Predator) {
+    // 3. 绘制一口锐利的白色钢牙 (向口内倾斜)
+    if (type === EntityType.Player || type === EntityType.Predator || mouthOpen > 0.3) {
       ctx.fillStyle = '#f5f5f5';
       ctx.strokeStyle = '#220202';
       ctx.lineWidth = Math.max(0.4, radius * 0.015);
@@ -115,7 +115,7 @@ export function drawEye(
   if (species.eyeSize <= 0) return;
 
   const eyeX = bodyLen * 0.32;
-  const eyeY = -bodyHeight * 0.28;
+  const eyeY = -bodyHeight * 0.08;
   const eyeR = radius * species.eyeSize;
 
   // 幼鱼简化圆眼 (Task 3)

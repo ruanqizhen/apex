@@ -123,9 +123,9 @@ export default function StartScreen() {
             >
               <span style={{ marginRight: 8, fontSize: '15px' }}>🕹️</span>
               <span>
-                <strong>{isTouchDevice ? '触控与虚拟摇杆' : '指针操纵'}</strong>：
+                <strong>{isTouchDevice ? '触控与游动' : '指针操纵'}</strong>：
                 {isTouchDevice
-                  ? '触碰屏幕左侧/任意区域唤出摇杆或滑动引导游动。'
+                  ? '点击屏幕任意位置调整游动方向，或滑动引导。'
                   : '玩家化身为金色巨噬者，跟随鼠标在深海游动。'}
               </span>
             </div>
@@ -144,7 +144,7 @@ export default function StartScreen() {
               <span>
                 <strong>急速冲刺</strong>：
                 {isTouchDevice ? (
-                  '按住右下角【🚀 冲刺】按键加速，持续消耗少许质量。'
+                  '手指长按屏幕任意位置持续冲刺，消耗少许质量。'
                 ) : (
                   <>
                     按住<span className="key-cap" style={{ margin: '0 3px' }}>左键</span>或

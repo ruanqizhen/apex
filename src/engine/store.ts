@@ -73,6 +73,7 @@ export const gameStore = createStore<GameStore>((set, get) => {
     upgradeAnimationType: null,
     upgradeOriginalLevel: 0,
     killCamUntil: null,
+    deathCinematic: null,
     currents: [],
     stats: {
       totalEaten: 0,
@@ -121,6 +122,7 @@ export const gameStore = createStore<GameStore>((set, get) => {
           upgradeAnimationType: null,
           upgradeOriginalLevel: 0,
           killCamUntil: null,
+          deathCinematic: null,
           currents: [],
           stats: {
             totalEaten: 0,
@@ -349,7 +351,12 @@ export const gameStore = createStore<GameStore>((set, get) => {
 
       runFixedTick: (dt: number) => {
         set((state) => {
-          if (state.status !== 'playing' && state.status !== 'upgrade_animation') return {};
+          if (
+            state.status !== 'playing' &&
+            state.status !== 'upgrade_animation' &&
+            state.status !== 'death_animation'
+          )
+            return {};
 
           const nextClock = state.logicalClockMs + dt;
           
@@ -375,6 +382,7 @@ export const gameStore = createStore<GameStore>((set, get) => {
               upgradeAnimationType: isFinished ? null : state.upgradeAnimationType,
               upgradeOriginalLevel: state.upgradeOriginalLevel,
               killCamUntil: state.killCamUntil,
+              deathCinematic: null,
               currents: state.currents,
               stats: state.stats,
               muted: state.muted
@@ -394,6 +402,96 @@ export const gameStore = createStore<GameStore>((set, get) => {
                 ...state.player,
                 isInvulnerableUntil: isFinished ? nextClock + 1000 : state.player.isInvulnerableUntil
               }
+            };
+          }
+
+          // 2. 如果处于被大鱼吞噬特写死亡动画状态
+          if (state.status === 'death_animation') {
+            const death = state.deathCinematic;
+            if (!death) {
+              return { status: 'game_over' };
+            }
+
+            const progress = Math.min(1.0, (nextClock - death.startClockMs) / death.durationMs);
+            const isFinished = progress >= 1.0;
+
+            // 大鱼向前突进扑咬 (前 40% 阶段)
+            const nextEntities = new Map(state.entities);
+            const killer = nextEntities.get(death.killerId);
+            if (killer && progress < 0.40) {
+              const lungeSpeed = (death.killerRadius * 0.55) / (death.durationMs * 0.40 / 1000);
+              killer.position.x += Math.cos(killer.facing) * lungeSpeed * (dt / 1000);
+              killer.position.y += Math.sin(killer.facing) * lungeSpeed * (dt / 1000);
+            }
+
+            // 在 0.40 咬合瞬间产生血沫/吞食水花粒子
+            let updatedDeath = death;
+            if (progress >= 0.40 && !death.hasBitten) {
+              updatedDeath = { ...death, hasBitten: true };
+              const mouthX = killer
+                ? killer.position.x + Math.cos(killer.facing) * killer.radius * 0.85
+                : death.playerStartPosition.x;
+              const mouthY = killer
+                ? killer.position.y + Math.sin(killer.facing) * killer.radius * 0.85
+                : death.playerStartPosition.y;
+
+              for (let pi = 0; pi < 16; pi++) {
+                nextParticles.push({
+                  id: `death_chomp_${nextClock}_${pi}`,
+                  kind: 'eat_burst',
+                  position: {
+                    x: mouthX + (Math.random() - 0.5) * Math.max(death.playerStartRadius, 10) * 2.0,
+                    y: mouthY + (Math.random() - 0.5) * Math.max(death.playerStartRadius, 10) * 2.0,
+                  },
+                  createdAt: nextClock,
+                  ttlMs: 800 + Math.random() * 400,
+                  meta: { isLethal: 1 },
+                });
+              }
+            }
+
+            const updatedStateForCamera: WorldState = {
+              status: isFinished ? 'game_over' : 'death_animation',
+              logicalClockMs: nextClock,
+              player: state.player,
+              entities: nextEntities,
+              spatialHash: state.spatialHash,
+              particles: nextParticles,
+              camera: { ...state.camera },
+              pendingEvolutionChoices: state.pendingEvolutionChoices,
+              upgradeAnimationTimer: null,
+              upgradeAnimationType: null,
+              upgradeOriginalLevel: state.upgradeOriginalLevel,
+              killCamUntil: null,
+              deathCinematic: isFinished ? null : updatedDeath,
+              currents: state.currents,
+              stats: state.stats,
+              muted: state.muted,
+            };
+            cameraSystem(updatedStateForCamera, state.canvasWidth, state.canvasHeight);
+
+            if (isFinished) {
+              state.actions?.onGameOver?.();
+              return {
+                logicalClockMs: nextClock,
+                particles: nextParticles,
+                status: 'game_over',
+                deathCinematic: null,
+                camera: updatedStateForCamera.camera,
+                entities: nextEntities,
+                player: {
+                  ...state.player,
+                  isAlive: false,
+                },
+              };
+            }
+
+            return {
+              logicalClockMs: nextClock,
+              particles: nextParticles,
+              deathCinematic: updatedDeath,
+              camera: updatedStateForCamera.camera,
+              entities: nextEntities,
             };
           }
 
@@ -421,6 +519,7 @@ export const gameStore = createStore<GameStore>((set, get) => {
             upgradeAnimationType: state.upgradeAnimationType,
             upgradeOriginalLevel: state.upgradeOriginalLevel,
             killCamUntil: nextKillCamUntil,
+            deathCinematic: state.deathCinematic,
             currents: [...state.currents],
             stats: {
               ...state.stats,
@@ -492,7 +591,11 @@ export const gameStore = createStore<GameStore>((set, get) => {
             camera: updatedState.camera,
             entities: updatedState.entities,
             pendingEvolutionChoices: updatedState.pendingEvolutionChoices,
+            upgradeAnimationTimer: updatedState.upgradeAnimationTimer,
+            upgradeAnimationType: updatedState.upgradeAnimationType,
+            upgradeOriginalLevel: updatedState.upgradeOriginalLevel,
             killCamUntil: updatedState.killCamUntil,
+            deathCinematic: updatedState.deathCinematic,
             currents: updatedState.currents
           };
         });
