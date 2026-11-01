@@ -23,6 +23,8 @@ export default function HUD() {
   // 细粒度订阅，避免整对象引用导致每 tick 重渲染
   const evolutionLevel = useStore(gameStore, (s) => s.player.evolutionLevel);
   const mass = useStore(gameStore, (s) => s.player.mass);
+  const isDashing = useStore(gameStore, (s) => s.player.isDashing);
+  const frenzyUntil = useStore(gameStore, (s) => s.player.frenzyUntil);
   const magnetUntil = useStore(gameStore, (s) => s.player.magnetUntil);
   const shieldActive = useStore(gameStore, (s) => s.player.shieldActive);
   const inkCooldownUntil = useStore(gameStore, (s) => s.player.inkCooldownUntil);
@@ -64,6 +66,14 @@ export default function HUD() {
 
   const magnetTimeLeft =
     magnetUntil && magnetUntil > logicalClockMs ? (magnetUntil - logicalClockMs) / 1000 : 0;
+
+  // 冲刺消耗可视化：与 movementSystem 同口径（2%/秒，涡轮增压每层 ×0.7），
+  // 狂热期间冲刺免费。之前质量只在数字上悄悄减少，玩家看不出代价。
+  const isFrenzy = frenzyUntil !== null && frenzyUntil > logicalClockMs;
+  const dashRegenStacks = mutations.find((m) => m.id === 'mut_dash_regen')?.stacks || 0;
+  const dashCostPct = 2 * Math.pow(0.7, dashRegenStacks);
+  const dashCostText = dashCostPct % 1 === 0 ? `${dashCostPct}` : dashCostPct.toFixed(1);
+  const isPayingDash = isDashing && !isFrenzy;
 
   const hasInkSkill = mutations.some((m) => m.id === 'mut_ink');
   const inkCdLeft =
@@ -139,12 +149,27 @@ export default function HUD() {
             style={{
               fontSize: '15px',
               fontWeight: 800,
-              color: '#f3f4f6',
+              color: isPayingDash ? '#f87171' : '#f3f4f6',
               fontFamily: "'Orbitron', sans-serif",
             }}
           >
             {Math.round(mass)}
           </span>
+          {isDashing && (
+            <span
+              style={{
+                fontSize: '10px',
+                color: isPayingDash ? '#f87171' : '#8FE3B0',
+                background: isPayingDash ? 'rgba(248, 113, 113, 0.12)' : 'rgba(143, 227, 176, 0.12)',
+                padding: '1px 5px',
+                borderRadius: '4px',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {isPayingDash ? `▼ -${dashCostText}%/秒` : '冲刺免费'}
+            </span>
+          )}
         </div>
       </div>
 
