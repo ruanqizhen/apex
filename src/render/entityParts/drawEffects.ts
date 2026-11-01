@@ -157,8 +157,25 @@ export function drawShieldSpines(ctx: CanvasRenderingContext2D, bodyLen: number,
 export function drawPredatorDecor(
   ctx: CanvasRenderingContext2D, species: FishSpecies,
   bodyLen: number, bodyHeight: number, radius: number,
-  speciesIndex: number, clockMs: number
+  speciesIndex: number, clockMs: number, aiState?: string
 ) {
+  // 追击/攻击时眼睛泛红光：掠食者从“路过的大鱼”变成“正在盯着你的大鱼”，
+  // 之前只有小地图红三角和危险预警在提示，玩家看鱼本身是看不出来的。
+  if (aiState === 'pursue' || aiState === 'attack') {
+    const eyeX = bodyLen * 0.32;
+    const eyeY = -bodyHeight * 0.08;
+    const eyeR = radius * species.eyeSize;
+    const glowPulse = 0.7 + 0.3 * Math.sin(clockMs * 0.01);
+    const glow = ctx.createRadialGradient(eyeX, eyeY, 0, eyeX, eyeY, eyeR * 3.2);
+    glow.addColorStop(0, `rgba(255, 60, 60, ${0.45 * glowPulse})`);
+    glow.addColorStop(1, 'rgba(255, 60, 60, 0)');
+    ctx.save();
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(eyeX, eyeY, eyeR * 3.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
   if (speciesIndex === 2) {
     const lureX = bodyLen * 0.3;
     const lureY = -bodyHeight - radius * 0.3;

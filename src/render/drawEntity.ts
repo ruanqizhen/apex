@@ -18,6 +18,37 @@ import {
 import { drawMouth, drawEye } from './entityParts/drawFeatures';
 
 // ──────────────────────────────────────────────
+// 渲染侧运动状态：让摆尾频率跟速度走，而不是永远按时钟匀速摆。
+// 时钟相位在速度突变时会跳变（比如冲刺起步那一帧尾巴突然错位），
+// 所以每条鱼单独累积相位：上一帧的速度决定这一帧相位推进多少，
+// 速度变了，相位只是快慢变了，不会跳。转弯和加速度也存在这里，
+// 用上一帧的朝向/速度和这一帧对比算出来。
+// 实体被回收后 id 可能复用，时钟倒退（新一局）时直接重置，避免旧状态串局。
+// ──────────────────────────────────────────────
+interface RenderMotion {
+  phase: number;
+  lastClock: number;
+  prevFacing: number;
+  prevSpeed: number;
+}
+const renderMotionById = new Map<string, RenderMotion>();
+
+function hashSeed(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) {
+    h = (h * 31 + id.charCodeAt(i)) | 0;
+  }
+  return h;
+}
+
+function wrappedAngleDelta(a: number, b: number): number {
+  let d = a - b;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
+
+// ──────────────────────────────────────────────
 // 主入口
 // ──────────────────────────────────────────────
 export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, state: WorldState) {
@@ -79,7 +110,7 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
       drawDorsalFin(ctx, pSpecies, bodyLen, bodyHeight, radius, logicalClockMs, lvl, false);
       drawBody(ctx, pSpecies, bodyLen, bodyHeight, type, player, bodyPath);
       drawPattern(ctx, pSpecies, bodyLen, bodyHeight, radius, bodyPath, lvl);
-      drawEye(ctx, pSpecies, bodyLen, bodyHeight, radius, lvl);
+      drawEye(ctx, pSpecies, bodyLen, bodyHeight, radius, lvl, logicalClockMs, hashSeed(entity.id), 1);
     }
     ctx.restore();
     return;
@@ -162,9 +193,46 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
   const speed = Math.hypot(entity.velocity.x, entity.velocity.y);
   const speedFactor = Math.min(2.0, 0.3 + speed * 0.8);
 
-  const phase = logicalClockMs * 0.012 * species.swimFrequency * freqMul;
-  const tailSwing = isEntityFrozen || isStunned ? 0 : Math.sin(phase) * radius * 0.35 * species.swimAmplitude * speedFactor;
-  const bodyWave = isEntityFrozen || isStunned ? 0 : Math.sin(phase + 0.5) * radius * species.bodyWaveAmplitude * speedFactor;
+  // 速度相关的摆动：相位按速度累积，游得慢摆得慢、游得快摆得快，
+  // 而不是原来不管快慢都按同一个时钟频率摆。冻结/眩晕时相位停住。
+  // 转弯弯曲：用上一帧朝向算出转弯量，身体向转弯方向弯、尾巴反向甩，
+  // 之前鱼是整块刚体旋转，转弯时像一块木板在平移。
+  // 加速拉伸：速度在增加时身体沿前进方向拉长、变扁一点，减速时回弹。
+  const basePhase = logicalClockMs * 0.012 * species.swimFrequency * freqMul;
+  let motion = renderMotionById.get(entity.id);
+  if (!motion || logicalClockMs < motion.lastClock) {
+    motion = { phase: basePhase, lastClock: logicalClockMs, prevFacing: entity.facing, prevSpeed: speed };
+    renderMotionById.set(entity.id, motion);
+    if (renderMotionById.size > 400) {
+      const firstKey = renderMotionById.keys().next().value;
+      if (firstKey !== undefined) renderMotionById.delete(firstKey);
+    }
+  }
+  const dtMs = Math.min(100, Math.max(0, logicalClockMs - motion.lastClock));
+  const isCharging = type !== EntityType.Predator ? false : aiEntity.chargePhase === 'charging';
+  let turnBend = 0;
+  let stretch = 1;
+  if (!isEntityFrozen && !isStunned && dtMs > 0) {
+    // 相位推进：慢游 0.55 倍、快游 1.65 倍，线性插在 speedFactor 上
+    const speedMod = 0.35 + speedFactor * 0.65;
+    motion.phase += dtMs * 0.012 * species.swimFrequency * freqMul * speedMod;
+    const turnDelta = wrappedAngleDelta(entity.facing, motion.prevFacing);
+    // 转一帧 0.05 弧度（缓转）时弯约 0.1 个半径，急转时顶到 0.4 个半径封顶
+    turnBend = Math.max(-radius * 0.4, Math.min(radius * 0.4, turnDelta * radius * 2));
+    const accel = speed - motion.prevSpeed;
+    stretch = 1 + Math.max(-0.03, Math.min(0.05, accel * 0.04)) + (isCharging ? 0.08 : 0);
+  }
+  motion.lastClock = logicalClockMs;
+  motion.prevFacing = entity.facing;
+  motion.prevSpeed = speed;
+
+  const phase = motion.phase;
+  const tailSwing = isEntityFrozen || isStunned
+    ? 0
+    : Math.sin(phase) * radius * 0.35 * species.swimAmplitude * speedFactor - turnBend * 0.5;
+  const bodyWave = isEntityFrozen || isStunned
+    ? 0
+    : Math.sin(phase + 0.5) * radius * species.bodyWaveAmplitude * speedFactor + turnBend;
 
   let gulpScale = 1.0;
   let mouthOpen = 0;
@@ -198,13 +266,13 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
   }
 
   const aspect = species.bodyAspect;
-  const bodyLen = radius * aspect * gulpScale;
-  const bodyHeight = radius * (2.0 / (aspect * 0.5 + 0.5)) * 0.5 * gulpScale;
+  const bodyLen = radius * aspect * gulpScale * stretch;
+  const bodyHeight = radius * (2.0 / (aspect * 0.5 + 0.5)) * 0.5 * gulpScale * (1 - (stretch - 1) * 0.5);
 
   ctx.shadowBlur = isPlayer ? 0 : radius * 0.35;
   ctx.shadowColor = species.glowColor;
 
-  drawTail(ctx, species, bodyLen, bodyHeight, radius, tailSwing, logicalClockMs, lvl, isEntityFrozen, isStunned);
+  drawTail(ctx, species, bodyLen, bodyHeight, radius, tailSwing, logicalClockMs, lvl, isEntityFrozen, isStunned, speedFactor);
 
   if (isPlayer && lvl >= 8 && !isEntityFrozen) {
     drawSecondaryFins(ctx, bodyLen, bodyHeight, radius, logicalClockMs);
@@ -221,9 +289,8 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
   if (isPlayer && player!.shieldActive) {
     drawShieldSpines(ctx, bodyLen, bodyHeight, radius);
   }
-  if (isPlayer && lvl >= 8) {
-    drawScales(ctx, bodyLen, bodyHeight, radius, bodyPath);
-  }
+  // 鳞片：屏上够大的鱼都有淡鳞，Lvl 8+ 玩家仍用原来的黄金龙鳞
+  drawScales(ctx, bodyLen, bodyHeight, radius, bodyPath, state.camera.scale, isPlayer && lvl >= 8);
   if (lvl >= 6) {
     drawLateralLine(ctx, bodyLen, bodyHeight, radius, bodyWave);
   }
@@ -239,10 +306,27 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
     drawMagnetAntennae(ctx, bodyLen, bodyHeight, radius, logicalClockMs);
   }
 
-  drawEye(ctx, species, bodyLen, bodyHeight, radius, lvl);
+  drawEye(ctx, species, bodyLen, bodyHeight, radius, lvl, logicalClockMs, hashSeed(entity.id), speedFactor);
 
   if (type === EntityType.Predator) {
-    drawPredatorDecor(ctx, species, bodyLen, bodyHeight, radius, speciesIndex, logicalClockMs);
+    drawPredatorDecor(ctx, species, bodyLen, bodyHeight, radius, speciesIndex, logicalClockMs, aiEntity.aiState);
+  }
+
+  // 冲刺速度线：玩家冲刺时身后 3 条拉长的水流线，冲刺感不再只靠气泡
+  if (isPlayer && player!.isDashing && !isEntityFrozen) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.lineWidth = Math.max(0.8, radius * 0.05);
+    ctx.lineCap = 'round';
+    for (let i = -1; i <= 1; i++) {
+      const sy = i * bodyHeight * 0.45;
+      const streakLen = radius * (1.0 + 0.3 * Math.sin(logicalClockMs * 0.02 + i));
+      ctx.beginPath();
+      ctx.moveTo(-bodyLen * 0.5, sy);
+      ctx.lineTo(-bodyLen * 0.5 - streakLen, sy + Math.sin(logicalClockMs * 0.015 + i * 2) * radius * 0.08);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
   if (isEntityFrozen) {
     drawFreezeOverlay(ctx, bodyLen, bodyHeight, radius, bodyPath);
@@ -274,14 +358,18 @@ function drawTadpole(ctx: CanvasRenderingContext2D, player: Player, radius: numb
   const r = radius * gulpScale;
   const phase = logicalClockMs * 0.014;
   const breathe = Math.sin(logicalClockMs * 0.004) * 0.04 + 1.0; // 呼吸膨缩
+  // 小蝌蚪尾巴振幅也跟速度走：静止时轻摆、游起来摆幅变大。
+  // 只缩放振幅不缩放相位频率，避免速度突变时相位跳变。
+  const tadpoleSpeed = Math.hypot(player.velocity.x, player.velocity.y);
+  const tadpoleAmp = 0.6 + Math.min(2.0, 0.3 + tadpoleSpeed * 0.8) * 0.4;
 
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
   // ── 1. 尾巴骨架 + 半透明膜质尾鳍 ──
-  const swing1 = Math.sin(phase) * r * 0.5;
-  const swing2 = Math.sin(phase - 1.0) * r * 0.82;
-  const swing3 = Math.sin(phase - 2.0) * r * 1.0;
+  const swing1 = Math.sin(phase) * r * 0.5 * tadpoleAmp;
+  const swing2 = Math.sin(phase - 1.0) * r * 0.82 * tadpoleAmp;
+  const swing3 = Math.sin(phase - 2.0) * r * 1.0 * tadpoleAmp;
 
   // 尾巴中轴控制点（从身体根部到末端）
   const t0 = { x: -r * 0.15, y: 0 };

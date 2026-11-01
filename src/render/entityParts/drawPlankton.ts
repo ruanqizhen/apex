@@ -9,6 +9,20 @@ export function drawPlankton(ctx: CanvasRenderingContext2D, entity: BaseEntity, 
   const pulse = 0.7 + 0.3 * Math.sin(clockMs * 0.004 * species.swimFrequency);
   const drift = Math.sin(clockMs * 0.003) * r * 0.3;
 
+  // 生物发光晕：发光种先在身后铺一层柔光，深海里浮游生物是光点而不是色块
+  if (species.pattern === 'bioluminescent') {
+    const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 2.4);
+    halo.addColorStop(0, species.patternColor);
+    halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.save();
+    ctx.globalAlpha = 0.25 * pulse;
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 2.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   if (species.bodyShape === 'jellyfish') {
     const umbrellaPhase = Math.sin(clockMs * 0.005) * 0.25;
 

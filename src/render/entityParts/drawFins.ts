@@ -1,4 +1,17 @@
 import { FishSpecies } from '../fishSpecies';
+import { hexToRgba } from './colorUtils';
+
+// 鳍膜渐变：鳍根实色、鳍尖半透明，之前整片鳍是平色塑料片。
+// finColor 可能是 hex 或 rgba；rgba 时 hexToRgba 原样返回，渐变退化为透明度渐变，仍可用。
+function finGradient(
+  ctx: CanvasRenderingContext2D, fromX: number, toX: number,
+  finColor: string, finAlpha: number
+): CanvasGradient {
+  const grad = ctx.createLinearGradient(fromX, 0, toX, 0);
+  grad.addColorStop(0, hexToRgba(finColor, finAlpha));
+  grad.addColorStop(1, hexToRgba(finColor, finAlpha * 0.35));
+  return grad;
+}
 
 // ══════════════════════════════════════════════
 //  尾鳍 (支持冰晶化及鱼鳍骨刺 - Task 2/4)
@@ -6,11 +19,17 @@ import { FishSpecies } from '../fishSpecies';
 export function drawTail(
   ctx: CanvasRenderingContext2D, species: FishSpecies,
   bodyLen: number, bodyHeight: number, radius: number,
-  tailSwing: number, _clockMs: number, lvl: number, isFrozen: boolean, isStunned: boolean
+  tailSwing: number, clockMs: number, lvl: number, isFrozen: boolean, isStunned: boolean,
+  speedFactor: number = 1
 ) {
   const tailX = -bodyLen * 0.45;
   const tailSize = radius * species.tailSize;
-  const swing = tailSwing;
+  // 尾尖二次波动：主摆动之外叠加一个高频小幅抖动，尾鳍末端像被水带了一下，
+  // 而不是整块鳍板刚性平移。冻结/眩晕时不加。
+  const flutter = isFrozen || isStunned
+    ? 0
+    : Math.sin(clockMs * 0.018 * species.swimFrequency) * tailSize * 0.07 * speedFactor;
+  const swing = tailSwing + flutter;
 
   ctx.save();
 
@@ -32,8 +51,7 @@ export function drawTail(
     return;
   }
 
-  ctx.fillStyle = species.finColor;
-  ctx.globalAlpha = species.finAlpha;
+  ctx.fillStyle = finGradient(ctx, tailX, tailX - tailSize, species.finColor, species.finAlpha);
 
   switch (species.tailShape) {
     case 'forked': {
@@ -110,9 +128,10 @@ export function drawTail(
     }
   }
 
-  // 鱼鳍放射状骨刺线条 (Lvl >= 6 - Task 2)
-  if (lvl >= 6 && !isStunned) {
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+  // 鱼鳍放射状骨刺线条：之前只给 Lvl >= 6，现在所有鱼都有，
+  // 低等级用更淡的线，鳍膜上能看出鳍条而不是一整片色块
+  if (!isStunned) {
+    ctx.strokeStyle = lvl >= 6 ? 'rgba(255, 255, 255, 0.28)' : 'rgba(255, 255, 255, 0.12)';
     ctx.lineWidth = Math.max(0.6, radius * 0.025);
     ctx.beginPath();
     for (let i = 0; i < 5; i++) {
@@ -199,8 +218,11 @@ export function drawDorsalFin(
     return;
   }
 
-  ctx.fillStyle = species.finColor;
-  ctx.globalAlpha = species.finAlpha * 0.85;
+  // 背鳍渐变是竖向的（根到尖），不用共用的横向 finGradient，单独建一个
+  const dorsalGrad = ctx.createLinearGradient(0, -bodyHeight * 0.75, 0, -bodyHeight * 0.75 - finH);
+  dorsalGrad.addColorStop(0, hexToRgba(species.finColor, species.finAlpha * 0.85));
+  dorsalGrad.addColorStop(1, hexToRgba(species.finColor, species.finAlpha * 0.3));
+  ctx.fillStyle = dorsalGrad;
 
   ctx.beginPath();
   ctx.moveTo(startX, -bodyHeight * 0.75);
@@ -215,18 +237,16 @@ export function drawDorsalFin(
   ctx.closePath();
   ctx.fill();
 
-  // 鳍部骨刺线条 (Task 2)
-  if (lvl >= 6) {
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
-    ctx.lineWidth = Math.max(0.6, radius * 0.02);
-    ctx.beginPath();
-    for (let i = 0; i < 4; i++) {
-      const f = 0.2 + i * 0.25;
-      ctx.moveTo(startX - finLen * f, -bodyHeight * 0.7);
-      ctx.lineTo(startX - finLen * f * 0.92, -bodyHeight * 0.75 - finH * (1 - Math.abs(f - 0.5) * 0.4) + wobble);
-    }
-    ctx.stroke();
+  // 鳍部骨刺线条：所有等级都有，低等级更淡
+  ctx.strokeStyle = lvl >= 6 ? 'rgba(255, 255, 255, 0.22)' : 'rgba(255, 255, 255, 0.10)';
+  ctx.lineWidth = Math.max(0.6, radius * 0.02);
+  ctx.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const f = 0.2 + i * 0.25;
+    ctx.moveTo(startX - finLen * f, -bodyHeight * 0.7);
+    ctx.lineTo(startX - finLen * f * 0.92, -bodyHeight * 0.75 - finH * (1 - Math.abs(f - 0.5) * 0.4) + wobble);
   }
+  ctx.stroke();
 
   ctx.restore();
 }
@@ -284,45 +304,41 @@ export function drawPectoralFins(
     return;
   }
 
-  ctx.fillStyle = species.finColor;
-  ctx.globalAlpha = species.finAlpha * 0.7;
-
   // 上侧胸鳍
   ctx.save();
   ctx.translate(finX, -bodyHeight * 0.35);
   ctx.rotate(-0.4 + finPhase);
+  // 胸鳍膜渐变要在平移/旋转之后建，渐变坐标才跟鳍的局部坐标对齐（根实、尖透）
+  ctx.fillStyle = finGradient(ctx, 0, -finSize, species.finColor, species.finAlpha * 0.7);
   ctx.beginPath();
   ctx.moveTo(0, 0);
   ctx.quadraticCurveTo(-finSize * 0.5, -finSize * 0.8, -finSize * 1.0, -finSize * 0.5);
   ctx.quadraticCurveTo(-finSize * 0.7, -finSize * 0.1, 0, 0);
   ctx.fill();
-  if (lvl >= 6) {
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
-    ctx.lineWidth = 0.9;
-    ctx.beginPath();
-    ctx.moveTo(0, 0); ctx.lineTo(-finSize * 0.85, -finSize * 0.45);
-    ctx.moveTo(0, 0); ctx.lineTo(-finSize * 0.75, -finSize * 0.22);
-    ctx.stroke();
-  }
+  ctx.strokeStyle = lvl >= 6 ? 'rgba(255, 255, 255, 0.22)' : 'rgba(255, 255, 255, 0.10)';
+  ctx.lineWidth = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(0, 0); ctx.lineTo(-finSize * 0.85, -finSize * 0.45);
+  ctx.moveTo(0, 0); ctx.lineTo(-finSize * 0.75, -finSize * 0.22);
+  ctx.stroke();
   ctx.restore();
 
   // 下侧胸鳍
   ctx.save();
   ctx.translate(finX, bodyHeight * 0.35);
   ctx.rotate(0.4 - finPhase);
+  ctx.fillStyle = finGradient(ctx, 0, -finSize, species.finColor, species.finAlpha * 0.7);
   ctx.beginPath();
   ctx.moveTo(0, 0);
   ctx.quadraticCurveTo(-finSize * 0.5, finSize * 0.8, -finSize * 1.0, finSize * 0.5);
   ctx.quadraticCurveTo(-finSize * 0.7, finSize * 0.1, 0, 0);
   ctx.fill();
-  if (lvl >= 6) {
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
-    ctx.lineWidth = 0.9;
-    ctx.beginPath();
-    ctx.moveTo(0, 0); ctx.lineTo(-finSize * 0.85, finSize * 0.45);
-    ctx.moveTo(0, 0); ctx.lineTo(-finSize * 0.75, finSize * 0.22);
-    ctx.stroke();
-  }
+  ctx.strokeStyle = lvl >= 6 ? 'rgba(255, 255, 255, 0.22)' : 'rgba(255, 255, 255, 0.10)';
+  ctx.lineWidth = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(0, 0); ctx.lineTo(-finSize * 0.85, finSize * 0.45);
+  ctx.moveTo(0, 0); ctx.lineTo(-finSize * 0.75, finSize * 0.22);
+  ctx.stroke();
   ctx.restore();
 
   ctx.restore();
