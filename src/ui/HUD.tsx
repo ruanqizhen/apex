@@ -311,6 +311,27 @@ export default function HUD() {
         >
           <button
             type="button"
+            onClick={() => actions.setPaused(true)}
+            style={{
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: '6px',
+              color: '#9ca3af',
+              padding: '2px 6px',
+              cursor: 'pointer',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '2px',
+              transition: 'all 0.2s',
+            }}
+            title="暂停 (Esc / P)"
+          >
+            ⏸
+          </button>
+          <button
+            type="button"
             onClick={() => toggleFullscreen()}
             style={{
               background: 'rgba(255, 255, 255, 0.08)',

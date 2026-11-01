@@ -169,6 +169,10 @@ export default function MobileControls() {
 
   if (status !== 'playing') return null;
 
+  // 触屏设备上 HUD 的按钮会被本层全屏触控层盖住，所以在这里单独放一个
+  // 暂停按钮（桌面端用 HUD 里的 ⏸，不重复出现）。
+  const isTouchDevice = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+
   return (
     <div
       onTouchStart={handleTouchStart}
@@ -188,6 +192,39 @@ export default function MobileControls() {
         WebkitUserSelect: 'none',
       }}
     >
+      {/* 触屏暂停按钮：stopPropagation 避免触发本层的转向/冲刺 */}
+      {isTouchDevice && (
+        <button
+          type="button"
+          aria-label="暂停"
+          onTouchStart={(e) => {
+            e.stopPropagation();
+            actions.setPaused(true);
+          }}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            actions.setPaused(true);
+          }}
+          style={{
+            position: 'absolute',
+            top: 'max(100px, calc(var(--sat) + 96px))',
+            right: 'max(12px, var(--sar))',
+            zIndex: 11,
+            width: '44px',
+            height: '44px',
+            borderRadius: '50%',
+            background: 'rgba(4, 12, 34, 0.65)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            color: '#f3f4f6',
+            fontSize: '16px',
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+          }}
+        >
+          ⏸
+        </button>
+      )}
+
       {/* Visual Touch Indicator on Tap & Hold */}
       {touchState.active && (
         <div

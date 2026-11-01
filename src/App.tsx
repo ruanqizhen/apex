@@ -10,6 +10,7 @@ import GameOverScreen from './ui/GameOverScreen';
 import EvolutionCardModal from './ui/EvolutionCardModal';
 import UpgradeCinematic from './ui/UpgradeCinematic';
 import HUD from './ui/HUD';
+import PauseMenu from './ui/PauseMenu';
 import MobileControls from './ui/MobileControls';
 import DeathCinematic from './ui/DeathCinematic';
 
@@ -80,6 +81,17 @@ export default function App() {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Esc / P 只在 playing <-> paused 之间切换：进化选卡、升级动画、
+      // 死亡动画期间不响应，避免绕过选卡或打断演出。
+      if (e.code === 'Escape' || e.code === 'KeyP') {
+        if (statusRef.current === 'playing') {
+          actions.setPaused(true);
+        } else if (statusRef.current === 'paused') {
+          actions.setPaused(false);
+        }
+        return;
+      }
+
       if (statusRef.current === 'playing') {
         if (e.code === 'Space') {
           actions.setDashing(true);
@@ -138,6 +150,12 @@ export default function App() {
 
       {status === 'start_screen' && <StartScreen />}
       {status === 'playing' && <HUD />}
+      {status === 'paused' && (
+        <>
+          <HUD />
+          <PauseMenu />
+        </>
+      )}
       {status === 'paused_evolution' && (
         <>
           <HUD />
@@ -173,7 +191,7 @@ export default function App() {
               zIndex: 4,
             }}
           >
-            <div>控制：鼠标移动游动，左键/空格冲刺 (冲刺消耗 2% 质量/秒)</div>
+            <div>控制：鼠标移动游动，左键/空格冲刺 (冲刺消耗 2% 质量/秒)，Esc/P 暂停</div>
           </div>
         )}
     </div>
