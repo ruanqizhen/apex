@@ -78,6 +78,7 @@ export interface GameStoreActions {
   runFixedTick: (dt: number) => void;
   setCanvasSize: (width: number, height: number) => void;
   setPaused: (paused: boolean) => void;
+  quitToMenu: () => void;
   toggleMute: () => void;
   onEat?: () => void;
   onLevelUp?: () => void;
@@ -129,7 +130,7 @@ export interface CameraState {
   targetScale: number;
 }
 
-export type GameStatus = "start_screen" | "playing" | "paused_evolution" | "game_over" | "upgrade_animation" | "death_animation";
+export type GameStatus = "start_screen" | "playing" | "paused" | "paused_evolution" | "game_over" | "upgrade_animation" | "death_animation";
 
 export interface DeathCinematicState {
   killerId: string;

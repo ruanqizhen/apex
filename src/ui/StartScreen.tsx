@@ -201,6 +201,31 @@ export default function StartScreen() {
                 <strong>深海天敌</strong>：避开深红色【顶级掠食者】，靠近时将触发边缘危险预警！
               </span>
             </div>
+
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                borderLeft: '3px solid #fbbf24',
+                background: 'rgba(255, 255, 255, 0.02)',
+                padding: '6px 8px 6px 10px',
+                borderRadius: '0 8px 8px 0',
+              }}
+            >
+              <span style={{ marginRight: 8, fontSize: '15px' }}>⏸</span>
+              <span>
+                <strong>暂停</strong>：
+                {isTouchDevice ? (
+                  '点右上角 ⏸ 暂停，可继续、重新开始或回主菜单。'
+                ) : (
+                  <>
+                    按<span className="key-cap" style={{ margin: '0 3px' }}>Esc</span>或
+                    <span className="key-cap" style={{ margin: '0 3px' }}>P</span>
+                    暂停，可继续、重新开始或回主菜单。
+                  </>
+                )}
+              </span>
+            </div>
           </div>
         </div>
 

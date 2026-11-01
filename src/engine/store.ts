@@ -320,12 +320,45 @@ export const gameStore = createStore<GameStore>((set, get) => {
 
       setPaused: (paused: boolean) => {
         set((state) => {
+          // 注意：不要复用 paused_evolution，那是选突变基因的专用状态，
+          // 复用它会在暂停时错误弹出进化卡片。普通暂停用独立的 paused 状态，
+          // 游戏循环遇到非游玩状态会自动清零累加器、冻结逻辑时钟，
+          // 因此暂停期间世界静止、解冻后不会瞬间跳跃。
           if (paused && state.status === 'playing') {
-            return { status: 'paused_evolution' }; // 或暂停状态
-          } else if (!paused && state.status === 'paused_evolution') {
+            return {
+              status: 'paused',
+              player: { ...state.player, isDashing: false },
+            };
+          } else if (!paused && state.status === 'paused') {
             return { status: 'playing' };
           }
           return {};
+        });
+      },
+
+      quitToMenu: () => {
+        const { entities } = get();
+        entities.forEach((entity) => globalEntityPool.releaseAIEntity(entity));
+        entities.clear();
+        globalSpatialHash.clear();
+        set({
+          status: 'start_screen',
+          logicalClockMs: 0,
+          player: createInitialPlayer(),
+          entities: new Map<string, AIEntity>(),
+          particles: [],
+          pendingEvolutionChoices: null,
+          upgradeAnimationTimer: null,
+          upgradeAnimationType: null,
+          upgradeOriginalLevel: 0,
+          killCamUntil: null,
+          deathCinematic: null,
+          currents: [],
+          stats: {
+            totalEaten: 0,
+            maxMassReached: GAME_CONFIG.INITIAL_MASS,
+            survivalMs: 0,
+          },
         });
       },
 
