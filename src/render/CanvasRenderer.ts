@@ -11,6 +11,12 @@ let fps = 0;
 let lastFpsUpdate = 0;
 let frameCount = 0;
 
+// 调试面板默认关闭：仅开发模式，或线上显式加 ?debug=1 时才显示。
+// 之前正式版无条件显示（宽屏即画），属于误留到线上的调试信息。
+const isDebugOverlayEnabled =
+  import.meta.env.DEV ||
+  (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug'));
+
 export const CanvasRenderer = {
   init(canvas: HTMLCanvasElement) {
     canvasCtx = canvas.getContext('2d');
@@ -116,8 +122,9 @@ export const CanvasRenderer = {
     // 危险预警指示器
     this.renderDangerIndicators(ctx, state);
 
-    // 3. 绘制 HUD/Debug Overlay (仅在宽屏桌面端展示，避免移动端遮挡操作与视野)
-    if (canvasWidth >= 1024) {
+    // 3. 绘制 Debug Overlay：仅调试模式展示，避免移动端遮挡操作与视野，
+    // 也避免正式版玩家看到 FPS/AI 数量等内部信息。
+    if (canvasWidth >= 1024 && isDebugOverlayEnabled) {
       this.renderDebugOverlay(ctx, state);
     }
 
