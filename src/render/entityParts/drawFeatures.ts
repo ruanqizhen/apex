@@ -110,7 +110,8 @@ export function drawMouth(
 // ══════════════════════════════════════════════
 export function drawEye(
   ctx: CanvasRenderingContext2D, species: FishSpecies,
-  bodyLen: number, bodyHeight: number, radius: number, lvl: number
+  bodyLen: number, bodyHeight: number, radius: number, lvl: number,
+  clockMs: number = 0, seed: number = 0, speedFactor: number = 1
 ) {
   if (species.eyeSize <= 0) return;
 
@@ -118,15 +119,46 @@ export function drawEye(
   const eyeY = -bodyHeight * 0.08;
   const eyeR = radius * species.eyeSize;
 
-  // 幼鱼简化圆眼 (Task 3)
+  // 眨眼：每条鱼周期错开（seed 打散），约每 4 秒闭眼 0.13 秒。
+  // 之前眼睛永远睁着，鱼看起来像标本；闭眼画成一条眼睑线即可，不用遮罩。
+  const blinkCycle = 3800 + (Math.abs(seed) % 1200);
+  const blinkPhase = (clockMs + Math.abs(seed) * 97) % blinkCycle;
+  if (blinkPhase < 130 && lvl > 3) {
+    ctx.save();
+    ctx.strokeStyle = darkenColor(species.bodyColor, 30);
+    ctx.lineWidth = Math.max(0.5, eyeR * 0.12);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(eyeX - eyeR * 0.7, eyeY);
+    ctx.quadraticCurveTo(eyeX, eyeY + eyeR * 0.35, eyeX + eyeR * 0.7, eyeY);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
+  // 瞳孔朝向：游得越快越往前方看，另加极缓慢的环视漂移，眼睛不再钉死在固定点
+  const lookX = 0.15 + 0.10 * Math.min(1, speedFactor / 2);
+  const lookY = Math.sin(clockMs * 0.0012 + seed) * 0.08;
+  const irisX = eyeX + eyeR * lookX;
+  const irisY = eyeY + eyeR * lookY;
+
+  // 幼鱼简化圆眼：之前是纯黑圆点，改成带虹膜的简化版，仍便宜
   if (lvl <= 3) {
-    ctx.fillStyle = '#111111';
+    ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
     ctx.fill();
+    ctx.fillStyle = species.eyeColor;
+    ctx.beginPath();
+    ctx.arc(irisX, irisY, eyeR * 0.7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#111111';
+    ctx.beginPath();
+    ctx.arc(irisX, irisY, eyeR * 0.38, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
     ctx.beginPath();
-    ctx.arc(eyeX + eyeR * 0.2, eyeY - eyeR * 0.25, eyeR * 0.22, 0, Math.PI * 2);
+    ctx.arc(irisX + eyeR * 0.2, irisY - eyeR * 0.25, eyeR * 0.22, 0, Math.PI * 2);
     ctx.fill();
     return;
   }
@@ -138,31 +170,54 @@ export function drawEye(
   ctx.fill();
 
   // 2. 炫彩渐变虹膜 (Task 1)
-  const eyeGrad = ctx.createRadialGradient(eyeX, eyeY, 0, eyeX, eyeY, eyeR * 0.85);
+  const eyeGrad = ctx.createRadialGradient(irisX, irisY, 0, irisX, irisY, eyeR * 0.85);
   eyeGrad.addColorStop(0, species.eyeColor);
   eyeGrad.addColorStop(1, darkenColor(species.eyeColor, 35));
 
   ctx.fillStyle = eyeGrad;
   ctx.beginPath();
-  ctx.arc(eyeX + eyeR * 0.15, eyeY, eyeR * 0.72, 0, Math.PI * 2);
+  ctx.arc(irisX, irisY, eyeR * 0.72, 0, Math.PI * 2);
   ctx.fill();
 
-  // 3. 漆黑眼瞳
+  // 虹膜放射纹：从瞳孔边缘向外 12 条细线，虹膜不再是一块平色
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(irisX, irisY, eyeR * 0.72, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.18)';
+  ctx.lineWidth = Math.max(0.3, eyeR * 0.03);
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(irisX + Math.cos(a) * eyeR * 0.42, irisY + Math.sin(a) * eyeR * 0.42);
+    ctx.lineTo(irisX + Math.cos(a) * eyeR * 0.72, irisY + Math.sin(a) * eyeR * 0.72);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 虹膜边缘深环（limbal ring），让虹膜和眼白分界清晰
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.lineWidth = Math.max(0.4, eyeR * 0.06);
+  ctx.beginPath();
+  ctx.arc(irisX, irisY, eyeR * 0.72, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // 3. 漆黑眼瞳（跟随虹膜中心，即跟随注视方向）
   ctx.fillStyle = '#0f0f18';
   ctx.beginPath();
-  ctx.arc(eyeX + eyeR * 0.2, eyeY, eyeR * 0.42, 0, Math.PI * 2);
+  ctx.arc(irisX, irisY, eyeR * 0.42, 0, Math.PI * 2);
   ctx.fill();
 
   // 4. 双白点高光 (Task 1)
   ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
   ctx.beginPath();
-  ctx.arc(eyeX + eyeR * 0.38, eyeY - eyeR * 0.28, eyeR * 0.18, 0, Math.PI * 2);
+  ctx.arc(irisX + eyeR * 0.18, irisY - eyeR * 0.28, eyeR * 0.18, 0, Math.PI * 2);
   ctx.fill();
 
   if (lvl >= 6) {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
     ctx.beginPath();
-    ctx.arc(eyeX + eyeR * 0.08, eyeY + eyeR * 0.28, eyeR * 0.08, 0, Math.PI * 2);
+    ctx.arc(irisX - eyeR * 0.12, irisY + eyeR * 0.28, eyeR * 0.08, 0, Math.PI * 2);
     ctx.fill();
   }
 }

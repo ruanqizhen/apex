@@ -1,3 +1,22 @@
+// 把 #rrggbb / #rgb 转成 rgba 字符串，供鳍膜渐变等需要透明度的场合使用；
+// 已经是 rgba/rgb/hsl 的颜色原样返回（渐变里再叠透明度会失真，不做二次处理）。
+export function hexToRgba(color: string, alpha: number): string {
+  const hex = color.replace('#', '');
+  if (hex.length === 6) {
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  if (hex.length === 3) {
+    const r = parseInt(hex[0] + hex[0], 16);
+    const g = parseInt(hex[1] + hex[1], 16);
+    const b = parseInt(hex[2] + hex[2], 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return color;
+}
+
 export function darkenColor(color: string, percent: number): string {
   if (color.startsWith('hsl')) {
     const match = color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);

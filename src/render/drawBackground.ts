@@ -44,6 +44,25 @@ export function drawBackground(
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, width, height);
 
+  // 1.5 水面光柱：3 束从水面斜射下来的柔光，随相机缓慢视差移动、随时间轻摆。
+  // 之前背景只有海洋雪，画面没有“水在上面”的方向感；光柱很淡，不抢鱼的戏。
+  ctx.save();
+  for (let i = 0; i < 3; i++) {
+    const shaftW = width * 0.12;
+    const span = width + shaftW * 2;
+    const baseX = ((i * 0.37 * width - camera.position.x * 0.08) % span + span) % span - shaftW;
+    const sway = Math.sin(logicalClockMs * 0.0003 + i * 1.7) * 20;
+    ctx.fillStyle = 'rgba(180, 220, 255, 0.045)';
+    ctx.beginPath();
+    ctx.moveTo(baseX + sway, 0);
+    ctx.lineTo(baseX + shaftW + sway, 0);
+    ctx.lineTo(baseX + shaftW + 90 + sway, height);
+    ctx.lineTo(baseX + 90 + sway, height);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
   // 2. 绘制具有视差效果的海底光影粒子 (以 0.4x 相机速度做视差，实现 3D 深度感)
   ctx.save();
   const screenCenterX = width / 2;
@@ -83,4 +102,14 @@ export function drawBackground(
   }
 
   ctx.restore();
+
+  // 3. 暗角：画面四边极淡地压暗，视线自然落在中央的鱼身上
+  const vignette = ctx.createRadialGradient(
+    width / 2, height / 2, Math.min(width, height) * 0.35,
+    width / 2, height / 2, Math.max(width, height) * 0.75
+  );
+  vignette.addColorStop(0, 'rgba(0, 0, 10, 0)');
+  vignette.addColorStop(1, 'rgba(0, 0, 10, 0.20)');
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, width, height);
 }
