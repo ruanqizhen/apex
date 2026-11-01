@@ -80,12 +80,25 @@ describe('comboFrenzySystem', () => {
     comboFrenzySystem(state, () => {});
     expect(state.player.comboCount).toBe(10);
   });
-  it('should decay by 1 at 3500ms elapsed', () => {
+  it('should decay by 1 at 3500ms elapsed (Lvl 2+, 3s window)', () => {
     const state = createMockState();
+    state.player.evolutionLevel = 2;
     state.logicalClockMs = 4500;
     comboFrenzySystem(state, () => {});
     expect(state.player.comboCount).toBe(9);
     expect(state.player.comboLastEatAt).toBe(1500);
+  });
+  it('should not decay at 3500ms elapsed at Lvl 0-1 (5s early window)', () => {
+    const state = createMockState();
+    state.logicalClockMs = 4500;
+    comboFrenzySystem(state, () => {});
+    expect(state.player.comboCount).toBe(10);
+  });
+  it('should decay by 1 at 5500ms elapsed at Lvl 0-1 (5s early window)', () => {
+    const state = createMockState();
+    state.logicalClockMs = 6500;
+    comboFrenzySystem(state, () => {});
+    expect(state.player.comboCount).toBe(9);
   });
   it('should not decay with combo_guard at 3500ms elapsed', () => {
     const state = createMockState();

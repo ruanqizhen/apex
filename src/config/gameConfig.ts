@@ -17,6 +17,9 @@ export const GAME_CONFIG = {
   // 狂热连击系统
   COMBO_MAX: 15,
   COMBO_DECAY_START_MS: 3000,
+  // Lvl 0-1 新手期：浮游生物稀疏，3 秒窗口很难连上，暂放宽到 5 秒；
+  // 2 级起恢复 3 秒，连击守护突变仍可将其延长到 5 秒。
+  COMBO_DECAY_START_EARLY_MS: 5000,
   COMBO_DECAY_RATE_MS: 500,
   FRENZY_DURATION_MS: 5000,
   FRENZY_EAT_RADIUS_MULTIPLIER: 1.5, // 狂热时吞噬半径 ×1.5

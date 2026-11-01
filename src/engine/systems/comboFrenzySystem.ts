@@ -1,8 +1,16 @@
 // src/engine/systems/comboFrenzySystem.ts
 
-import { WorldState, ParticleEvent } from '../types';
+import { WorldState, ParticleEvent, Player } from '../types';
 import { GAME_CONFIG } from '../../config/gameConfig';
 import { SoundManager } from '../soundManager';
+
+// 连击衰减开始时间：UI 倒计时和本系统共用同一规则，避免两边口径不一致。
+export function getComboDecayStartMs(player: Pick<Player, 'mutations' | 'evolutionLevel'>): number {
+  const hasComboGuard = player.mutations.some((m) => m.id === 'mut_combo_guard');
+  if (hasComboGuard) return 5000;
+  if (player.evolutionLevel <= 1) return GAME_CONFIG.COMBO_DECAY_START_EARLY_MS;
+  return GAME_CONFIG.COMBO_DECAY_START_MS;
+}
 
 export function comboFrenzySystem(
   state: WorldState,
@@ -48,9 +56,7 @@ export function comboFrenzySystem(
 
   // 3. 处理 combo 衰减 (PRD 5.3)
   if (player.comboCount > 0) {
-    // 连击守护突变 (衰减触发时间延长至 5000ms，否则 3000ms)
-    const hasComboGuard = player.mutations.some(m => m.id === 'mut_combo_guard');
-    const decayStart = hasComboGuard ? 5000 : GAME_CONFIG.COMBO_DECAY_START_MS;
+    const decayStart = getComboDecayStartMs(player);
 
     const elapsed = clock - player.comboLastEatAt;
 
