@@ -366,112 +366,122 @@ function drawTadpole(ctx: CanvasRenderingContext2D, player: Player, radius: numb
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  // ── 1. 尾巴骨架 + 半透明膜质尾鳍 ──
-  const swing1 = Math.sin(phase) * r * 0.5 * tadpoleAmp;
-  const swing2 = Math.sin(phase - 1.0) * r * 0.82 * tadpoleAmp;
-  const swing3 = Math.sin(phase - 2.0) * r * 1.0 * tadpoleAmp;
+  // ── 1. 尾巴：一根细肌肉 + 一整片大而圆润的半透明尾鳍 ──
+  // 之前的问题：肌肉画得又粗又直（每段线宽 0.42r→0.05r 的“棍子”），
+  // 膜鳍又薄又淡（透明度只有 0.1 左右，还分上下两片），
+  // 远看就只剩一根棍子。真小蝌蚪正好反过来：肌肉细，鳍大、软、透明，
+  // 尾鳍高度接近身体高度，末端圆润，整条尾巴像一片随水波摆动的面纱。
+  // 所以这里改成：先画一整片尾鳍（上下连通、末端圆弧收口），
+  // 再在中间画一条细而渐尖的肌肉，肌肉只占鳍高的约 1/4。
+  const tailBaseX = -r * 0.15;
+  const tailTipX = -r * 3.0;
+  const tailLen = tailBaseX - tailTipX; // 正数
+  // 尾巴中线：行波从头传向尾，振幅向尾端递增（真蝌蚪就是这样游的），
+  // 而不是原来几个控制点各摆各的。tadpoleAmp 只缩放振幅，不改相位。
+  const tailCenterY = (frac: number): number =>
+    Math.sin(phase - frac * 2.4) * r * (0.12 + 0.55 * frac) * tadpoleAmp;
+  const tailXAt = (frac: number): number => tailBaseX - frac * tailLen;
+  // 尾鳍高度轮廓：基部贴近身体几乎为 0，中前段涨到约 1 个 r，
+  // 再向末端收拢但不收成尖，留 0.25r 给圆弧收口。
+  const tailFinH = (frac: number): number =>
+    r * (0.9 * Math.sin(Math.PI * Math.pow(frac, 0.65)) + 0.25 * frac);
+  // 肌肉半宽：基部 0.22r，渐尖到末端 0.04r
+  const tailMuscleH = (frac: number): number => r * (0.22 * (1 - frac * 0.85) + 0.02);
 
-  // 尾巴中轴控制点（从身体根部到末端）
-  const t0 = { x: -r * 0.15, y: 0 };
-  const t1 = { x: -r * 0.75, y: swing1 * 0.35 };
-  const t2 = { x: -r * 1.45, y: swing1 * 0.85 };
-  const t3 = { x: -r * 2.15, y: swing2 * 0.95 };
-  const t4 = { x: -r * 2.8,  y: swing3 };
+  // 尾鳍路径：上缘从基部到末端，下缘原路返回，末端用二次曲线圆弧收口
+  const finPath = new Path2D();
+  const FIN_SAMPLES = 16;
+  for (let i = 0; i <= FIN_SAMPLES; i++) {
+    const f = i / FIN_SAMPLES;
+    const x = tailXAt(f);
+    const y = tailCenterY(f) - tailFinH(f);
+    if (i === 0) finPath.moveTo(x, y);
+    else finPath.lineTo(x, y);
+  }
+  // 末端圆弧：控制点再往后伸一点，鳍尖就是圆的而不是尖的
+  finPath.quadraticCurveTo(
+    tailTipX - r * 0.35, tailCenterY(1),
+    tailXAt(1), tailCenterY(1) + tailFinH(1)
+  );
+  for (let i = FIN_SAMPLES; i >= 0; i--) {
+    const f = i / FIN_SAMPLES;
+    finPath.lineTo(tailXAt(f), tailCenterY(f) + tailFinH(f));
+  }
+  finPath.closePath();
 
-  // 半透明膜质尾鳍（上下对称的有机波纹形状）
+  // 尾鳍填充：比原来亮一倍以上，基部最实、末端最透
+  const finGrad = ctx.createLinearGradient(tailBaseX, 0, tailTipX, 0);
+  finGrad.addColorStop(0, 'rgba(255, 210, 90, 0.42)');
+  finGrad.addColorStop(0.35, 'rgba(255, 190, 60, 0.38)');
+  finGrad.addColorStop(0.7, 'rgba(255, 170, 40, 0.26)');
+  finGrad.addColorStop(1, 'rgba(255, 150, 20, 0.18)');
+  ctx.fillStyle = finGrad;
+  ctx.fill(finPath);
+  // 尾鳍上半的柔光：让鳍面看起来有厚度、有水光，而不是一块平色
   ctx.save();
-  const finWave1 = Math.sin(phase + 0.8) * r * 0.25;
-  const finWave2 = Math.sin(phase + 1.6) * r * 0.35;
-  const finWave3 = Math.sin(phase + 2.4) * r * 0.2;
-
-  // 上方膜鳍
-  const finGradUp = ctx.createLinearGradient(t1.x, t1.y - r * 0.5, t4.x, t4.y);
-  finGradUp.addColorStop(0, 'rgba(255, 200, 60, 0.12)');
-  finGradUp.addColorStop(0.4, 'rgba(255, 180, 50, 0.18)');
-  finGradUp.addColorStop(0.8, 'rgba(255, 160, 30, 0.08)');
-  finGradUp.addColorStop(1, 'rgba(255, 140, 0, 0)');
-  ctx.fillStyle = finGradUp;
-  ctx.beginPath();
-  ctx.moveTo(t1.x, t1.y);
-  ctx.quadraticCurveTo(t2.x, t2.y - r * 0.38 + finWave1, t3.x, t3.y - r * 0.28 + finWave2);
-  ctx.quadraticCurveTo(t3.x - r * 0.3, t3.y - r * 0.12 + finWave3, t4.x, t4.y);
-  ctx.lineTo(t3.x, t3.y);
-  ctx.quadraticCurveTo(t2.x + r * 0.1, t2.y, t1.x, t1.y);
-  ctx.closePath();
-  ctx.fill();
-
-  // 下方膜鳍
-  const finGradDown = ctx.createLinearGradient(t1.x, t1.y + r * 0.5, t4.x, t4.y);
-  finGradDown.addColorStop(0, 'rgba(255, 200, 60, 0.10)');
-  finGradDown.addColorStop(0.4, 'rgba(255, 180, 50, 0.15)');
-  finGradDown.addColorStop(0.8, 'rgba(255, 160, 30, 0.06)');
-  finGradDown.addColorStop(1, 'rgba(255, 140, 0, 0)');
-  ctx.fillStyle = finGradDown;
-  ctx.beginPath();
-  ctx.moveTo(t1.x, t1.y);
-  ctx.quadraticCurveTo(t2.x, t2.y + r * 0.35 - finWave1, t3.x, t3.y + r * 0.25 - finWave2);
-  ctx.quadraticCurveTo(t3.x - r * 0.3, t3.y + r * 0.1 - finWave3, t4.x, t4.y);
-  ctx.lineTo(t3.x, t3.y);
-  ctx.quadraticCurveTo(t2.x + r * 0.1, t2.y, t1.x, t1.y);
-  ctx.closePath();
-  ctx.fill();
-
-  // 膜鳍脉络（纤细的筋脉线）
-  ctx.strokeStyle = 'rgba(255, 195, 60, 0.12)';
-  ctx.lineWidth = Math.max(0.5, r * 0.015);
-  for (let vi = 0; vi < 3; vi++) {
-    const vt = 0.3 + vi * 0.25;
-    const vx = t1.x + (t4.x - t1.x) * vt;
-    const vy = t1.y + (t4.y - t1.y) * vt;
-    const vOff = Math.sin(phase + vi * 1.2) * r * (0.15 + vi * 0.06);
-    ctx.beginPath();
-    ctx.moveTo(vx, vy);
-    ctx.quadraticCurveTo(vx - r * 0.15, vy - r * 0.15 + vOff, vx - r * 0.3, vy - r * 0.05 + vOff * 0.5);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(vx, vy);
-    ctx.quadraticCurveTo(vx - r * 0.15, vy + r * 0.12 - vOff, vx - r * 0.25, vy + r * 0.04 - vOff * 0.5);
-    ctx.stroke();
-  }
+  ctx.clip(finPath);
+  const finSheen = ctx.createLinearGradient(0, -r, 0, r);
+  finSheen.addColorStop(0, 'rgba(255, 255, 240, 0.14)');
+  finSheen.addColorStop(0.5, 'rgba(255, 255, 240, 0)');
+  finSheen.addColorStop(1, 'rgba(255, 180, 60, 0.08)');
+  ctx.fillStyle = finSheen;
+  ctx.fillRect(tailTipX - r * 0.4, -r * 1.4, tailLen + r * 0.8, r * 2.8);
   ctx.restore();
+  // 尾鳍边缘：一条柔和的亮边，把鳍的轮廓从深海背景里托出来
+  ctx.strokeStyle = 'rgba(255, 220, 120, 0.35)';
+  ctx.lineWidth = Math.max(0.6, r * 0.02);
+  ctx.stroke(finPath);
 
-  // 尾巴中轴（带渐变粗细的有机骨架）
-  const tailSegs = [
-    { from: t0, to: t1, w: r * 0.42 },
-    { from: t1, to: t2, w: r * 0.28 },
-    { from: t2, to: t3, w: r * 0.16 },
-    { from: t3, to: t4, w: r * 0.05 },
-  ];
-  for (let i = 0; i < tailSegs.length; i++) {
-    const seg = tailSegs[i];
-    const tailGrad = ctx.createLinearGradient(seg.from.x, seg.from.y, seg.to.x, seg.to.y);
-    if (i === 0) {
-      tailGrad.addColorStop(0, '#fcd34d');
-      tailGrad.addColorStop(1, '#f59e0b');
-    } else if (i === 1) {
-      tailGrad.addColorStop(0, '#f59e0b');
-      tailGrad.addColorStop(1, '#d97706');
-    } else {
-      tailGrad.addColorStop(0, '#d97706');
-      tailGrad.addColorStop(1, '#b45309');
-    }
-    ctx.strokeStyle = tailGrad;
-    ctx.lineWidth = seg.w;
+  // 尾鳍脉络：从肌肉向鳍缘放射、略向后弯的细线，鳍面有纹理才像膜
+  ctx.strokeStyle = 'rgba(255, 235, 170, 0.20)';
+  ctx.lineWidth = Math.max(0.4, r * 0.015);
+  for (const f of [0.25, 0.45, 0.65, 0.85]) {
+    const x = tailXAt(f);
+    const cy = tailCenterY(f);
+    const mw = tailMuscleH(f);
+    const fh = tailFinH(f);
     ctx.beginPath();
-    ctx.moveTo(seg.from.x, seg.from.y);
-    const cx = (seg.from.x + seg.to.x) / 2;
-    const cy = (seg.from.y + seg.to.y) / 2;
-    ctx.quadraticCurveTo(cx, cy, seg.to.x, seg.to.y);
+    ctx.moveTo(x, cy - mw);
+    ctx.quadraticCurveTo(x - r * 0.15, cy - (mw + fh) * 0.6, x - r * 0.05, cy - fh * 0.92);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, cy + mw);
+    ctx.quadraticCurveTo(x - r * 0.15, cy + (mw + fh) * 0.6, x - r * 0.05, cy + fh * 0.92);
     ctx.stroke();
   }
 
-  // 尾巴中轴高光线（沿中心的亮线）
-  ctx.strokeStyle = 'rgba(255, 250, 220, 0.25)';
-  ctx.lineWidth = Math.max(0.8, r * 0.035);
+  // 细肌肉：填充的渐尖带子，不是粗线段
+  const musclePath = new Path2D();
+  for (let i = 0; i <= FIN_SAMPLES; i++) {
+    const f = i / FIN_SAMPLES;
+    const x = tailXAt(f);
+    const y = tailCenterY(f) - tailMuscleH(f);
+    if (i === 0) musclePath.moveTo(x, y);
+    else musclePath.lineTo(x, y);
+  }
+  for (let i = FIN_SAMPLES; i >= 0; i--) {
+    const f = i / FIN_SAMPLES;
+    musclePath.lineTo(tailXAt(f), tailCenterY(f) + tailMuscleH(f));
+  }
+  musclePath.closePath();
+  const muscleGrad = ctx.createLinearGradient(tailBaseX, 0, tailTipX, 0);
+  muscleGrad.addColorStop(0, '#fcd34d');
+  muscleGrad.addColorStop(0.5, '#f59e0b');
+  muscleGrad.addColorStop(1, '#b45309');
+  ctx.fillStyle = muscleGrad;
+  ctx.fill(musclePath);
+
+  // 肌肉中线高光：沿中心一条亮线，肌肉是立体的圆柱而不是扁带
+  ctx.strokeStyle = 'rgba(255, 250, 220, 0.35)';
+  ctx.lineWidth = Math.max(0.6, r * 0.04);
   ctx.beginPath();
-  ctx.moveTo(t0.x, t0.y);
-  ctx.quadraticCurveTo(t1.x, t1.y, t2.x, t2.y);
-  ctx.quadraticCurveTo(t3.x, t3.y, t4.x, t4.y);
+  for (let i = 0; i <= FIN_SAMPLES; i++) {
+    const f = i / FIN_SAMPLES;
+    const x = tailXAt(f);
+    const y = tailCenterY(f);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
   ctx.stroke();
 
   // ── 2. 小胸鳍（左右各一片，轻微扇动） ──
@@ -511,7 +521,7 @@ function drawTadpole(ctx: CanvasRenderingContext2D, player: Player, radius: numb
 
   // ── 3. 头部（椭圆形身体 + 多层渐变 + 半透明光泽） ──
   const headW = r * 0.88 * breathe; // 水平半径（稍大）
-  const headH = r * 0.72 * breathe; // 垂直半径（稍扁）
+  const headH = r * 0.80 * breathe; // 更圆的头：之前 0.72 偏扁，圆头更像小蝌蚪也更可爱
 
   // 底色渐变（深海暖金色调，上下对称居中）
   const headGrad = ctx.createRadialGradient(
@@ -590,6 +600,15 @@ function drawTadpole(ctx: CanvasRenderingContext2D, player: Player, radius: numb
     ctx.fill();
   }
 
+  // ── 5.5 腮红：头两侧各一团粉色，和大眼睛一起构成“可爱脸” ──
+  ctx.fillStyle = 'rgba(255, 120, 140, 0.28)';
+  ctx.beginPath();
+  ctx.arc(headW * 0.42, -headH * 0.42, r * 0.14, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(headW * 0.42, headH * 0.42, r * 0.14, 0, Math.PI * 2);
+  ctx.fill();
+
   // ── 6. 鳃裂呼吸动画（上下对称的弧形裂隙，随呼吸周期张合） ──
   const gillOpen = 0.3 + 0.7 * Math.max(0, Math.sin(logicalClockMs * 0.005));
   const gillAlpha = 0.15 + gillOpen * 0.2;
@@ -613,7 +632,7 @@ function drawTadpole(ctx: CanvasRenderingContext2D, player: Player, radius: numb
   // ── 7. 眼睛（更大、更有神的眼睛 + 虹膜 + 动态高光） ──
   const eyeX = headW * 0.18;
   const eyeY = 0;
-  const eyeR = r * 0.2;
+  const eyeR = r * 0.23; // 眼睛再大一圈，可爱感主要靠大眼睛
 
   // 眼眶阴影
   ctx.save();
@@ -732,14 +751,19 @@ function drawTadpole(ctx: CanvasRenderingContext2D, player: Player, radius: numb
     ctx.lineTo(lx, ly);
     ctx.stroke();
   } else {
-    // 闭嘴（水平居中线上的一条短弧线）
+    // 闭嘴：一张小小的微笑嘴——主弧线向前鼓，尾端再向上翘一个小钩，
+    // 侧面看就是嘴角上扬，而不是原来一条平直的短线
     const mouthX = headW * 0.82;
     ctx.strokeStyle = '#92400e';
     ctx.lineWidth = Math.max(1.0, r * 0.06);
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(mouthX - r * 0.1, -r * 0.02);
-    ctx.quadraticCurveTo(mouthX + r * 0.02, 0, mouthX - r * 0.1, r * 0.02);
+    ctx.moveTo(mouthX - r * 0.1, -r * 0.04);
+    ctx.quadraticCurveTo(mouthX + r * 0.03, 0, mouthX - r * 0.1, r * 0.04);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(mouthX - r * 0.1, r * 0.04);
+    ctx.quadraticCurveTo(mouthX - r * 0.16, r * 0.02, mouthX - r * 0.17, -r * 0.03);
     ctx.stroke();
   }
 
@@ -763,9 +787,9 @@ function drawTadpole(ctx: CanvasRenderingContext2D, player: Player, radius: numb
     const sparkleAlpha = 0.25 + 0.35 * Math.sin(sparklePhase);
     if (sparkleAlpha < 0.1) continue;
 
-    // 沿尾巴中轴插值位置
-    const sx = t0.x + (t4.x - t0.x) * st;
-    const sy = t0.y + (t4.y - t0.y) * st + Math.sin(phase + si * 0.9) * r * 0.08;
+    // 沿尾巴中线位置（跟新尾巴的行波中线走，不再用旧的 t0-t4 直线插值）
+    const sx = tailXAt(st);
+    const sy = tailCenterY(st) + Math.sin(phase + si * 0.9) * r * 0.08;
     const sparkleR = r * (0.025 + 0.015 * Math.sin(sparklePhase * 1.3));
 
     const spGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, sparkleR * 3);
