@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useStore } from 'zustand';
 import { gameStore } from '../engine/store';
 import ComboBar from './ComboBar';
+import TutorialHints from './TutorialHints';
 
 function getTitle(level: number) {
   if (level === 0) return '浮游细胞';
@@ -71,7 +72,10 @@ export default function HUD() {
       ? (inkCooldownUntil - logicalClockMs) / 1000
       : 0;
 
+  // TutorialHints 挂在 HUD 下：HUD 在 playing / paused / 进化等状态都会渲染，
+  // 组件内部只在 playing 时显示，暂停、选卡时自动隐藏，不用改 App。
   return (
+    <>
     <div
       style={{
         position: 'absolute',
@@ -353,5 +357,7 @@ export default function HUD() {
         </div>
       </div>
     </div>
+    <TutorialHints />
+    </>
   );
 }
