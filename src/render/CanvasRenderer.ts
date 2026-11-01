@@ -4,7 +4,8 @@ import { GameStore } from '../engine/store';
 import { drawBackground } from './drawBackground';
 import { drawEntity } from './drawEntity';
 import { drawParticles } from './drawParticles';
-import { EntityType, OceanCurrent } from '../engine/types';
+import { AIEntity, EntityType, OceanCurrent, Player } from '../engine/types';
+import { GAME_CONFIG } from '../config/gameConfig';
 
 let canvasCtx: CanvasRenderingContext2D | null = null;
 let fps = 0;
@@ -54,6 +55,9 @@ export const CanvasRenderer = {
 
     // 绘制爆发与拖尾粒子 (传入玩家坐标、朝向、半径用于吞噬物理吸入动画)
     drawParticles(ctx, particles, logicalClockMs, player.position, player.facing, player.radius);
+
+    // 可吃 / 致命 / 吃不动轮廓：仍在相机变换内，用世界坐标画，线宽除以缩放保持屏上等粗
+    this.renderThreatRings(ctx, state);
 
     ctx.restore();
 
@@ -169,6 +173,68 @@ export const CanvasRenderer = {
 
       ctx.restore();
     }
+  },
+
+  // 威胁分类：与 consumptionSystem 的判定口径一致（不要只看体型）。
+  // Lvl 0-1 时任何鱼类接触都致命；2 级起按半径分可吃 / 致命 / 吃不动。
+  // 浮游生物、道具、宝石不画轮廓（前者太小太多，后者已有专属样式）。
+  classifyThreat(entity: AIEntity, player: Player): 'edible' | 'lethal' | 'too-big' | null {
+    if (!entity.isAlive) return null;
+    if (
+      entity.type === EntityType.Plankton ||
+      entity.type === EntityType.Item ||
+      entity.type === EntityType.Gem ||
+      entity.type === EntityType.Player
+    ) {
+      return null;
+    }
+    if (player.evolutionLevel <= 1) return 'lethal';
+    if (entity.radius <= player.radius) return 'edible';
+    if (
+      entity.type === EntityType.Predator &&
+      player.radius < entity.radius * GAME_CONFIG.PREDATOR_LETHAL_THRESHOLD
+    ) {
+      return 'lethal';
+    }
+    return 'too-big';
+  },
+
+  // 鱼类威胁轮廓：绿 = 可吃，红（呼吸脉动）= 致命，灰虚线 = 吃不动也不致命
+  renderThreatRings(ctx: CanvasRenderingContext2D, state: GameStore) {
+    const { canvasWidth, canvasHeight, camera, player, entities, logicalClockMs } = state;
+    if (!player.isAlive) return;
+
+    const viewHalfW = canvasWidth / 2 / camera.scale;
+    const viewHalfH = canvasHeight / 2 / camera.scale;
+
+    entities.forEach((entity) => {
+      const threat = this.classifyThreat(entity, player);
+      if (!threat) return;
+
+      // 只画视口内的，避免全图扫一遍的绘制开销和屏外残影
+      if (
+        Math.abs(entity.position.x - camera.position.x) > viewHalfW + entity.radius + 10 ||
+        Math.abs(entity.position.y - camera.position.y) > viewHalfH + entity.radius + 10
+      ) {
+        return;
+      }
+
+      ctx.save();
+      ctx.lineWidth = 1.5 / camera.scale;
+      if (threat === 'edible') {
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.65)';
+      } else if (threat === 'lethal') {
+        const pulse = 0.55 + 0.35 * Math.sin(logicalClockMs * 0.008);
+        ctx.strokeStyle = `rgba(255, 68, 85, ${pulse})`;
+      } else {
+        ctx.strokeStyle = 'rgba(156, 163, 175, 0.55)';
+        ctx.setLineDash([6 / camera.scale, 5 / camera.scale]);
+      }
+      ctx.beginPath();
+      ctx.arc(entity.position.x, entity.position.y, entity.radius + 3 / camera.scale, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    });
   },
 
   // 危险预警系统：屏幕边缘红色箭头和泛红光
@@ -317,25 +383,43 @@ export const CanvasRenderer = {
       const distFromCenter = Math.hypot(relX - mapCenterX, relY - mapCenterY);
       if (distFromCenter > mapSize / 2 - 2) return;
 
-      if (entity.type === EntityType.Predator) {
-        // 红色三角形
-        ctx.fillStyle = '#ff4455';
-        ctx.save();
-        ctx.translate(relX, relY);
-        ctx.rotate(entity.facing);
+      if (entity.type === EntityType.Plankton) {
+        // 淡青小圆点：主食来源，之前小地图上完全没有
+        ctx.fillStyle = 'rgba(165, 243, 252, 0.5)';
         ctx.beginPath();
-        ctx.moveTo(4, 0);
-        ctx.lineTo(-2.5, -2.5);
-        ctx.lineTo(-2.5, 2.5);
-        ctx.closePath();
+        ctx.arc(relX, relY, 1, 0, Math.PI * 2);
         ctx.fill();
-        ctx.restore();
-      } else if (entity.type === EntityType.Prey) {
-        // 绿色小圆点
-        ctx.fillStyle = 'rgba(100, 200, 130, 0.6)';
-        ctx.beginPath();
-        ctx.arc(relX, relY, 1.5, 0, Math.PI * 2);
-        ctx.fill();
+      } else if (
+        entity.type === EntityType.Predator ||
+        entity.type === EntityType.Prey ||
+        entity.type === EntityType.Competitor
+      ) {
+        // 颜色 = 威胁（与世界轮廓同口径），形状 = 种类：掠食者三角形，其余圆点
+        const threat = this.classifyThreat(entity, player);
+        const color =
+          threat === 'edible'
+            ? 'rgba(100, 200, 130, 0.85)'
+            : threat === 'lethal'
+              ? '#ff4455'
+              : 'rgba(156, 163, 175, 0.7)';
+        if (entity.type === EntityType.Predator) {
+          ctx.fillStyle = color;
+          ctx.save();
+          ctx.translate(relX, relY);
+          ctx.rotate(entity.facing);
+          ctx.beginPath();
+          ctx.moveTo(4, 0);
+          ctx.lineTo(-2.5, -2.5);
+          ctx.lineTo(-2.5, 2.5);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        } else {
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(relX, relY, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
       } else if (entity.type === EntityType.Item) {
         // 白色闪烁菱形
         const blink = 0.5 + 0.5 * Math.sin(logicalClockMs * 0.01 + entity.position.x);
@@ -376,6 +460,22 @@ export const CanvasRenderer = {
     ctx.arc(mapCenterX, mapCenterY, mapSize / 2, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
+
+    // 图例：只在游玩相关状态下画，避免开始屏角落多一行说明
+    // 注：paused 状态由暂停 PR 引入，本分支基于 main 时它还不存在，
+    // 暂停时菜单遮罩本身已说明状态，这里不单独列出它。
+    if (
+      state.status === 'playing' ||
+      state.status === 'paused_evolution' ||
+      state.status === 'upgrade_animation'
+    ) {
+      ctx.save();
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.fillText('绿可吃 · 红致命 · 灰吃不动', mapCenterX, Math.max(12, mapY - 8));
+      ctx.restore();
+    }
   },
 
   renderDebugOverlay(ctx: CanvasRenderingContext2D, state: GameStore) {
