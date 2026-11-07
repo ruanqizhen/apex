@@ -16,6 +16,7 @@ import {
   drawShieldAura,
 } from './entityParts/drawEffects';
 import { drawMouth, drawEye } from './entityParts/drawFeatures';
+import { getPlayerStage, getPlayerStageSpecies, drawPlayerStageFeatures } from './entityParts/drawPlayerStage';
 
 // ──────────────────────────────────────────────
 // 渲染侧运动状态：让摆尾频率跟速度走，而不是永远按时钟匀速摆。
@@ -56,7 +57,7 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
   const logicalClockMs = state.logicalClockMs;
 
   const speciesIndex = type === EntityType.Player ? 0 : (entity as AIEntity).speciesIndex ?? 0;
-  const species = getSpecies(type, speciesIndex);
+  let species = getSpecies(type, speciesIndex);
 
   let drawFacing = entity.facing;
   const isPlayer = type === EntityType.Player;
@@ -101,7 +102,7 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
     if (lvl <= 1) {
       drawTadpole(ctx, player, radius, logicalClockMs);
     } else {
-      const pSpecies = getSpecies(type, 0);
+      const pSpecies = getPlayerStageSpecies(getSpecies(type, 0), lvl);
       const aspect = pSpecies.bodyAspect;
       const bodyLen = radius * aspect;
       const bodyHeight = radius * (2.0 / (aspect * 0.5 + 0.5)) * 0.5;
@@ -158,6 +159,12 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
 
   const player = isPlayer ? (entity as Player) : null;
   const lvl = isPlayer ? player!.evolutionLevel : 6;
+
+  // 玩家按形态分段调外观：体型/眼睛/尾鳍/虹膜色都按段走，
+  // 非玩家实体不受影响。蝌蚪段（lvl<=1）前面已走专属分支，不到这里。
+  if (isPlayer) {
+    species = getPlayerStageSpecies(species, lvl);
+  }
 
   // 变色巨乌贼隐形
   if (type === EntityType.Predator && speciesIndex === 3) {
@@ -307,6 +314,11 @@ export function drawEntity(ctx: CanvasRenderingContext2D, entity: BaseEntity, st
   }
 
   drawEye(ctx, species, bodyLen, bodyHeight, radius, lvl, logicalClockMs, hashSeed(entity.id), speedFactor);
+
+  // 每段一个专属特征：鱼宝宝腮红 / 掠食者怒眉獠牙 / 利维坦头冠刺+炽目
+  if (isPlayer) {
+    drawPlayerStageFeatures(ctx, getPlayerStage(lvl), bodyLen, bodyHeight, radius, logicalClockMs);
+  }
 
   if (type === EntityType.Predator) {
     drawPredatorDecor(ctx, species, bodyLen, bodyHeight, radius, speciesIndex, logicalClockMs, aiEntity.aiState);

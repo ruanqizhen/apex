@@ -5,9 +5,10 @@ import ComboBar from './ComboBar';
 import TutorialHints from './TutorialHints';
 
 function getTitle(level: number) {
-  if (level === 0) return '浮游细胞';
-  if (level < 3) return '幼年小鱼';
-  if (level < 6) return '同级竞争者';
+  // 和渲染的形态分段对齐：每两级换一个称号
+  if (level < 2) return '小蝌蚪';
+  if (level < 4) return '鱼宝宝';
+  if (level < 6) return '青年鱼';
   if (level < 10) return '深海掠食者';
   if (level < 15) return '远古巨兽';
   return '利维坦：巅峰';

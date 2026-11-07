@@ -1,6 +1,7 @@
 import { FishSpecies } from '../fishSpecies';
 import { EntityType, Player } from '../../engine/types';
 import { darkenColor, lightenColor, hexToRgba } from './colorUtils';
+import { getPlayerStageHue } from './drawPlayerStage';
 
 // ══════════════════════════════════════════════
 //  鱼身主体
@@ -16,10 +17,13 @@ export function drawBody(
     const lvl = player.evolutionLevel;
     const sat = Math.min(100, 75 + lvl * 5);
     const light = Math.max(35, 55 - lvl * 1.5);
-    grad.addColorStop(0, `hsl(45, ${sat}%, ${Math.max(10, light - 15)}%)`);
-    grad.addColorStop(0.3, `hsl(45, ${sat}%, ${light}%)`);
-    grad.addColorStop(0.7, `hsl(48, ${Math.min(100, sat + 10)}%, ${Math.min(80, light + 20)}%)`);
-    grad.addColorStop(1, `hsl(50, ${Math.min(100, sat + 15)}%, ${Math.min(85, light + 30)}%)`);
+    // 体色按形态分段走，不再全程同一个金色：鱼宝宝淡金（48）、
+    // 青年正金（45）、掠食者橙红（30）、利维坦深金（42）
+    const hue = getPlayerStageHue(lvl);
+    grad.addColorStop(0, `hsl(${hue}, ${sat}%, ${Math.max(10, light - 15)}%)`);
+    grad.addColorStop(0.3, `hsl(${hue}, ${sat}%, ${light}%)`);
+    grad.addColorStop(0.7, `hsl(${hue + 3}, ${Math.min(100, sat + 10)}%, ${Math.min(80, light + 20)}%)`);
+    grad.addColorStop(1, `hsl(${hue + 5}, ${Math.min(100, sat + 15)}%, ${Math.min(85, light + 30)}%)`);
   } else {
     grad.addColorStop(0, darkenColor(species.bodyColor, 25));
     grad.addColorStop(0.35, species.bodyColor);
