@@ -61,8 +61,15 @@ describe('getRadiusFromMass', () => {
 
 describe('getLevelUpThreshold', () => {
   it('T(0) = 100', () => expect(getLevelUpThreshold(0)).toBe(100));
-  it('T(1) = 225', () => expect(getLevelUpThreshold(1)).toBe(225));
-  it('T(2) = 563', () => expect(getLevelUpThreshold(2)).toBe(563));
+  // 前两级增量缩为 2/3：T(1)=100+125*2/3=183，T(2)=183+338*2/3=408
+  it('T(1) = 183', () => expect(getLevelUpThreshold(1)).toBe(183));
+  it('T(2) = 408', () => expect(getLevelUpThreshold(2)).toBe(408));
+  it('early game total gain to Lvl 2 is 2/3 of the old 463', () => {
+    expect(getLevelUpThreshold(2) - 100).toBe(308);
+    expect((getLevelUpThreshold(2) - 100) / 463).toBeCloseTo(2 / 3, 1);
+  });
+  // Lvl 3 起阈值不变
+  it('T(3) = 1547 (unchanged)', () => expect(getLevelUpThreshold(3)).toBe(1547));
   it('thresholds should be strictly increasing', () => {
     let prev = 0;
     for (let i = 0; i <= 10; i++) {
