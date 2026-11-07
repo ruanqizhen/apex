@@ -50,6 +50,10 @@ export class EntityPool {
     entity.targetEntityId = null;
     entity.itemType = undefined;
     entity.frozenUntil = null;
+    // 追击计时也要清：回收的实体下次被重用时是全新的一条鱼，
+    // 不能带着上一条命的追击开始时间或冷静期出生
+    entity.chaseStartedAt = undefined;
+    entity.giveUpUntil = undefined;
     entity.chargeTimer = undefined;
     entity.chargePhase = undefined;
     entity.chargeTarget = undefined;
