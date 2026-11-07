@@ -1,7 +1,31 @@
 // src/engine/systems/aiSystem.ts
 
-import { WorldState, AIState, EntityType } from '../types';
+import { WorldState, AIState, EntityType, AIEntity } from '../types';
 import { getDistance, normalize, rotateVector } from '../math';
+import { GAME_CONFIG } from '../../config/gameConfig';
+
+// 追击超时放弃：状态回到 Wander、目标清空、开始 8 秒冷静期，
+// 并把游走目标定在远离玩家的方向，让它真的游走而不是原地徘徊。
+// 正在冲撞的剑鱼也一并取消冲撞，避免放弃后还把一记冲撞打完。
+function giveUpChase(entity: AIEntity, player: WorldState['player'], clock: number) {
+  entity.aiState = AIState.Wander;
+  entity.targetEntityId = null;
+  entity.chaseStartedAt = null;
+  entity.giveUpUntil = clock + GAME_CONFIG.PREDATOR_CHASE_COOLDOWN_MS;
+  if (entity.chargePhase === 'charging') {
+    entity.chargePhase = 'normal';
+    entity.chargeTimer = clock + 4000;
+  }
+  const away = normalize({
+    x: entity.position.x - player.position.x,
+    y: entity.position.y - player.position.y,
+  });
+  const awayDist = 300 + Math.random() * 200;
+  entity.wanderTarget = {
+    x: entity.position.x + away.x * awayDist,
+    y: entity.position.y + away.y * awayDist,
+  };
+}
 
 export function aiSystem(state: WorldState, dt: number) {
   const player = state.player;
@@ -57,6 +81,8 @@ export function aiSystem(state: WorldState, dt: number) {
       if (entity.aiState === AIState.Pursue || entity.aiState === AIState.Attack) {
         entity.aiState = AIState.Wander;
         entity.targetEntityId = null;
+        // 墨汁打断也清计时，下次再追是全新 5 秒；不设冷静期，墨汁本身就是那次放弃
+        entity.chaseStartedAt = null;
       }
     }
 
@@ -122,29 +148,49 @@ export function aiSystem(state: WorldState, dt: number) {
         if (player.evolutionLevel <= 1) {
           entity.aiState = AIState.Wander;
           entity.targetEntityId = null;
+          entity.chaseStartedAt = null;
+        } else if (
+          (entity.aiState === AIState.Pursue || entity.aiState === AIState.Attack) &&
+          entity.chaseStartedAt !== null &&
+          entity.chaseStartedAt !== undefined &&
+          clock - entity.chaseStartedAt >= GAME_CONFIG.PREDATOR_CHASE_MAX_MS
+        ) {
+          // 追击满 5 秒还没抓到：暂时放弃。Pursue 和 Attack 共用一个计时，
+          // 在两者之间来回切换不会重置计时。
+          giveUpChase(entity, player, clock);
         } else {
           const attackRange = entity.radius + player.radius * 1.5;
 
           if (entity.aiState === AIState.Idle || entity.aiState === AIState.Wander) {
-            if (distToPlayer < actualPerception) {
+            // 冷静期内即使玩家还在感知范围内也不开追
+            if (distToPlayer < actualPerception && clock >= (entity.giveUpUntil ?? 0)) {
               entity.aiState = AIState.Pursue;
               entity.targetEntityId = player.id;
+              entity.chaseStartedAt = clock;
             }
           }
           else if (entity.aiState === AIState.Pursue) {
+            if (entity.chaseStartedAt === null || entity.chaseStartedAt === undefined) {
+              entity.chaseStartedAt = clock;
+            }
             if (distToPlayer < attackRange) {
               entity.aiState = AIState.Attack;
             } else if (distToPlayer > 2.0 * actualPerception) {
               entity.aiState = AIState.Wander;
               entity.targetEntityId = null;
+              entity.chaseStartedAt = null;
             }
           }
           else if (entity.aiState === AIState.Attack) {
+            if (entity.chaseStartedAt === null || entity.chaseStartedAt === undefined) {
+              entity.chaseStartedAt = clock;
+            }
             if (distToPlayer >= attackRange && distToPlayer < 2.0 * actualPerception) {
               entity.aiState = AIState.Pursue;
             } else if (distToPlayer >= 2.0 * actualPerception) {
               entity.aiState = AIState.Wander;
               entity.targetEntityId = null;
+              entity.chaseStartedAt = null;
             }
           }
         }
@@ -152,6 +198,7 @@ export function aiSystem(state: WorldState, dt: number) {
     } else {
       entity.aiState = AIState.Wander;
       entity.targetEntityId = null;
+      entity.chaseStartedAt = null;
     }
 
     // 4. 根据当前状态执行行为 (计算 velocity)
