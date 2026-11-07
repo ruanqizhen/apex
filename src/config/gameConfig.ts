@@ -140,11 +140,18 @@ export const getRadiusFromMass = (mass: number): number => {
 
 export const getLevelUpThreshold = (level: number): number => {
   if (level <= 0) return GAME_CONFIG.INITIAL_MASS;
+  // 前两级（小蝌蚪 -> 小鱼）缩短为原来的 2/3：缩的是“要吃掉的质量”，
+  // 不是直接把阈值乘 2/3——初始质量 100 是固定的，只缩增量才正好是 2/3 的时间。
+  // Lvl 0->1: 100 + 125 * (2/3) = 183 (需吃 83 mass，原 125)
+  // Lvl 1->2: 183 + 338 * (2/3) = 408 (需吃 225 mass，原 338)
+  // 合计到 Lvl 2 需吃 308 mass，原 463，308/463 ≈ 2/3。
+  // Lvl 3 起阈值保持原公式不变（T(3)=1547、T(4)=4641），
+  // 所以到 Lvl 3 的总时间不变，只是 Lvl 2->3 这一段从 985 变成 1139，
+  // 比原来长约 16%——早期省下的时间没有从后期再扣一遍。
+  if (level === 1) return 183;
+  if (level === 2) return 408;
   // 升级阈值递增公式：T(n) = T(n-1) * (2.0 + 0.25 * n)
-  // 目标：每级需 2~3 分钟才能升级，且后期时间越来越长
-  // Lvl 0->1: 100 * 2.25 = 225 (需吃 125 mass)
-  // Lvl 1->2: 225 * 2.50 = 563 (需吃 338 mass)
-  // Lvl 2->3: 563 * 2.75 = 1547 (需吃 985 mass)
+  // Lvl 2->3: 563 * 2.75 = 1547 (需吃 985 mass，按新 T(2) 算是 1139)
   // Lvl 3->4: 1547 * 3.00 = 4641 (需吃 3094 mass)
   // 后期越来越需要大量猎食才能升级
   let threshold = GAME_CONFIG.INITIAL_MASS;
