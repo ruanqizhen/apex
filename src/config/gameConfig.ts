@@ -43,6 +43,13 @@ export const GAME_CONFIG = {
   // Predator 致命判定阈值 (玩家半径 < 猎食者半径 * 0.77 时致命)
   PREDATOR_LETHAL_THRESHOLD: 0.77,
 
+  // 掠食者追击上限：一次追击最多 5 秒，追不到就暂时放弃；
+  // 放弃后 8 秒内不再开追，期间它会游走离开而不是原地徘徊。
+  // 之前追击只在距离 > 2 倍感知范围时才放弃，掠食者比玩家快，
+  // 一旦被发现几乎必死，尤其刚到 Lvl 2 的小鱼毫无还手之力。
+  PREDATOR_CHASE_MAX_MS: 5000,
+  PREDATOR_CHASE_COOLDOWN_MS: 8000,
+
   // 视野与生成边界 (基于相机视口对角线)
   SPAWN_INNER_DIAGONAL_RATIO: 0.6,
   SPAWN_OUTER_DIAGONAL_RATIO: 1.0,

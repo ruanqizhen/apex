@@ -177,6 +177,8 @@ export function spawnSystem(
     entity.baseSpeed = baseSpeed;
     entity.wanderTarget = { x: 0, y: 0 };
     entity.targetEntityId = null;
+    entity.chaseStartedAt = undefined;
+    entity.giveUpUntil = undefined;
     entity.speciesIndex = Math.floor(Math.random() * (SPECIES_COUNT_MAP[type] || 1));
     entity.flockId = undefined;
     entity.gemValue = undefined;
@@ -218,6 +220,8 @@ export function spawnSystem(
       entity.baseSpeed = baseSpeed;
       entity.wanderTarget = { ...centerPos };
       entity.targetEntityId = null;
+      entity.chaseStartedAt = undefined;
+      entity.giveUpUntil = undefined;
       entity.speciesIndex = sharedSpeciesIndex;
       entity.flockId = flockId;
       entity.itemType = undefined;

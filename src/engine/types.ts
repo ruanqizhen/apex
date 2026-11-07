@@ -47,6 +47,8 @@ export interface AIEntity extends BaseEntity {
   speciesIndex: number;       // 视觉品种索引，用于确定该实体的外观变体
   itemType?: ItemType;        // 道具具体类型
   frozenUntil?: number | null;// 冰冻截至时间戳，为 null 或已过期表示未被冰冻
+  chaseStartedAt?: number | null; // 本次追击开始的逻辑时钟，Pursue/Attack 共用一个计时
+  giveUpUntil?: number | null;    // 放弃追击后的冷静期截止时钟，在此之前不再开追
   chargeTimer?: number;       // 剑鱼冲撞阶段计时器
   chargePhase?: 'normal' | 'charging' | 'stunned'; // 冲撞阶段
   chargeTarget?: Vector2;     // 冲撞目标坐标点
